@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: f1_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: f1_data
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - f1_network
+
+  spark-master:
+    image: apache/spark:latest
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    networks:
+      - f1_network
+
+  spark-worker:
+    image: apache/spark:latest
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    depends_on:
+      - spark-master
+    networks:
+      - f1_network
+
+  etl:
+    build: .
+    container_name: etl_service
+    command: python etl/etl_pipeline.py
+    depends_on:
+      - postgres
+      - spark-master
+    volumes:
+      - .:/app
+    networks:
+      - f1_network
+
+  dashboard:
+    build: .
+    container_name: f1_dashboard
+    command: streamlit run dashboard/dashboard_app.py --server.port=8501
+    ports:
+      - "8501:8501"
+    depends_on:
+      - postgres
+    volumes:
+      - .:/app
+    networks:
+      - f1_network
+
+networks:
+  f1_network:
+    driver: bridge
