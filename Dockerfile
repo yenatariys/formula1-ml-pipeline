@@ -20,5 +20,9 @@ RUN apt-get update && apt-get install -y postgresql-client
 # Copy seluruh project termasuk folder data
 COPY . .
 
+# Copy wait-for-postgres script
+COPY wait-for-postgres.sh .
+RUN chmod +x wait-for-postgres.sh
+
 # Jalankan ETL
 CMD ["python", "etl/etl_pipeline.py"]

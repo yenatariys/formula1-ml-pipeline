@@ -1,5 +1,6 @@
 from extract_data import extract_data
 from load_data import load_to_postgres
+from transform_data import transform_data  # import fungsi transformasi
 import time
 import psycopg2
 
@@ -21,8 +22,16 @@ while True:
         time.sleep(2)
 
 def main():
-    df = extract_data(data_dir="data/")  # folder CSV
-    load_to_postgres(df)
+    df = extract_data(data_dir="data/")  # extract pandas DF dari CSV
+    
+    # transform pake Spark
+    sdf = transform_data(df)
+    
+    # convert Spark DF ke pandas DF sebelum load
+    df_transformed = sdf.toPandas()
+    
+    # load ke Postgres
+    load_to_postgres(df_transformed)
 
 if __name__ == "__main__":
     main()
