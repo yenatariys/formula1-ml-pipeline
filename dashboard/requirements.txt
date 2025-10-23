@@ -1,0 +1,19 @@
+# dashboard/requirements.txt
+
+# Streamlit untuk UI dashboard
+streamlit>=1.25.0
+
+# Data processing
+pandas>=2.1.0
+numpy>=1.26.0
+
+# Visualisasi
+plotly>=5.18.0
+matplotlib>=3.8.0
+seaborn>=0.12.2
+
+# Koneksi database PostgreSQL
+psycopg2-binary>=2.9.9
+
+# Opsional, untuk caching/utility
+python-dotenv>=1.0.0  # jika ingin load .env
