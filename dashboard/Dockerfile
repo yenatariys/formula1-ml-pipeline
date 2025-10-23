@@ -1,4 +1,4 @@
-# Dockerfile_dashboard
+# Dockerfile
 FROM python:3.11
 
 # Set working directory
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements dashboard
-COPY dashboard/requirements.txt .
+COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt

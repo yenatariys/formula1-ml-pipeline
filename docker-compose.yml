@@ -41,9 +41,9 @@ services:
       - f1_network
 
   dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile_dashboard  # buat Dockerfile terpisah untuk dashboard
+    build: ./dashboard
+#      context: .
+#      dockerfile: Dockerfile  # buat Dockerfile terpisah untuk dashboard
     container_name: f1_dashboard
     command: streamlit run dashboard/dashboard_app.py --server.port=8501
     ports:
