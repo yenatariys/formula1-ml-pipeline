@@ -10,9 +10,15 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements dan install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install PostgreSQL client di ETL Container
+RUN apt-get update && apt-get install -y postgresql-client  
+
+# Copy seluruh project termasuk folder data
 COPY . .
 
+# Jalankan ETL
 CMD ["python", "etl/etl_pipeline.py"]

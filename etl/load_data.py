@@ -1,10 +1,6 @@
 from sqlalchemy import create_engine
 
-def load_data_to_postgres(sdf):
-    """Load Spark DataFrame into PostgreSQL"""
-    engine = create_engine("postgresql+psycopg2://admin:admin123@postgres:5432/f1_data")
-
-    # Convert Spark DataFrame → Pandas for SQLAlchemy
-    pdf = sdf.toPandas()
-    pdf.to_sql("race_results", engine, if_exists="replace", index=False)
-    print("Data successfully loaded into PostgreSQL.")
+def load_to_postgres(df, table_name="f1_results"):
+    engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1_data")
+    df.to_sql(table_name, engine, if_exists='replace', index=False)
+    print(f"Data loaded to table {table_name}")
