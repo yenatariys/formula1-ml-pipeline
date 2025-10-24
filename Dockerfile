@@ -2,13 +2,18 @@ FROM python:3.11
 
 WORKDIR /app
 
-# install system dependencies
+# install system dependencies including Java
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc \
     g++ \
     libpq-dev \
+    openjdk-21-jre-headless \
     && rm -rf /var/lib/apt/lists/*
+
+# Set JAVA_HOME environment variable
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # Copy requirements dan install
 COPY requirements.txt .

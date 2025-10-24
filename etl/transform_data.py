@@ -7,12 +7,13 @@ def transform_data(df):
     sdf = spark.createDataFrame(df)
 
     # Clean and format data
-    sdf = sdf.withColumn("season", col("season").cast("int")) \
+    sdf = sdf.withColumn("year", col("year").cast("int")) \
              .withColumn("round", col("round").cast("int")) \
-             .withColumn("laps", col("laps").cast("int"))
+             .withColumn("position", col("position").cast("int")) \
+             .withColumn("points", col("points").cast("float"))
 
-    # Example: filter out null winners
-    sdf = sdf.filter(col("winner").isNotNull())
+    # Filter out null positions (DNF, DNS, etc.)
+    sdf = sdf.filter(col("position").isNotNull())
 
     print("Transformation complete.")
     return sdf

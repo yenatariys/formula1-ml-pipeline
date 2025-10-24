@@ -13,7 +13,7 @@ def extract_data(data_dir="data/"):
 
     # pilih kolom yang relevan
     df = df[[
-        "raceId", "year", "round", "raceName", 
+        "raceId", "year", "round", "name", 
         "driverId", "surname", "position", "points"
     ]]
     return df
