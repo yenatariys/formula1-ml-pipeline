@@ -27,12 +27,12 @@ services:
       - f1_network
 
   etl:
-    build:
-      context: .
-      dockerfile: Dockerfile
-#    image: devinluize12/formula1-ml-pipeline-etl
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    image: devinluize12/formula1-ml-pipeline-etl:latest
     container_name: etl_service
-    command: ["./wait-for-postgres.sh", "f1_postgres", "python", "etl/etl_pipeline.py"]
+    # command: ["./wait-for-postgres.sh", "f1_postgres", "python", "etl/etl_pipeline.py"]  # Already in Dockerfile CMD
     ports:
       - "8888:8888"  # For Jupyter or debugging
     depends_on:
