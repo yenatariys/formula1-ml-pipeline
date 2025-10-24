@@ -309,75 +309,359 @@ def load_predictions():
     except:
         return pd.DataFrame()  # Return empty if table doesn't exist
 
-df_preds = load_predictions()
+@st.cache_data(ttl=60)
+def load_rf_predictions():
+    try:
+        return pd.read_sql("SELECT * FROM f1_predictions_rf", engine)
+    except:
+        return pd.DataFrame()
 
-# Dashboard Predictions
-if not df_preds.empty:
-    st.subheader("🤖 Race Win Predictions")
+@st.cache_data(ttl=60)
+def load_xgb_predictions():
+    try:
+        return pd.read_sql("SELECT * FROM f1_predictions_xgb", engine)
+    except:
+        return pd.DataFrame()
+
+df_preds = load_predictions()
+rf_preds_df = load_rf_predictions()
+xgb_preds_df = load_xgb_predictions()
+
+# Dashboard Predictions - Show Both Models
+st.subheader("🤖 Race Win Predictions - Model Comparison")
+
+if not rf_preds_df.empty and not xgb_preds_df.empty:
+    # Filter predictions by season
+    rf_filtered = rf_preds_df[rf_preds_df["year"] == year].copy()
+    xgb_filtered = xgb_preds_df[xgb_preds_df["year"] == year].copy()
     
-    # Show overall stats
-    st.info(f"Total predictions in database: {len(df_preds)} across years {df_preds['year'].min():.0f}-{df_preds['year'].max():.0f}")
-    
-    # Filter predictions by season first
-    pred_filtered = df_preds[df_preds["year"] == year].copy()
-    
-    if len(pred_filtered) > 0:
-        # Note: Predictions table has year, round, win_rate, avg_points, actual, predicted
-        # We can't easily match back to specific drivers without driverId in predictions table
-        # For now, show aggregated statistics
+    if len(rf_filtered) > 0 and len(xgb_filtered) > 0:
+        # Show metrics for both models side by side
+        col1, col2 = st.columns(2)
         
-        # Get predictions for selected year
-        y_test = pred_filtered['actual'].values
-        preds = pred_filtered['predicted'].values
+        with col1:
+            st.markdown("### 🌲 Random Forest")
+            rf_y_test = rf_filtered['actual'].values
+            rf_preds = rf_filtered['predicted'].values
+            rf_correct = (rf_y_test == rf_preds).sum()
+            rf_total = len(rf_y_test)
+            rf_acc = accuracy_score(rf_y_test, rf_preds)
+            
+            st.metric("Total Predictions", rf_total)
+            st.metric("Correct Predictions", rf_correct)
+            st.metric("Accuracy", f"{rf_acc:.1%}")
+            
+            # Confusion matrix
+            rf_cm = confusion_matrix(rf_y_test, rf_preds)
+            fig_rf = px.imshow(
+                rf_cm,
+                labels=dict(x="Predicted", y="Actual", color="Count"),
+                x=['No Win', 'Win'],
+                y=['No Win', 'Win'],
+                title=f"Random Forest Confusion Matrix ({year})",
+                color_continuous_scale='Greens',
+                text_auto=True
+            )
+            st.plotly_chart(fig_rf, use_container_width=True, key="rf_cm_predictions")
         
-        # Calculate metrics
-        correct = (y_test == preds).sum()
-        total = len(y_test)
-        acc = accuracy_score(y_test, preds)
+        with col2:
+            st.markdown("### 🚀 XGBoost")
+            xgb_y_test = xgb_filtered['actual'].values
+            xgb_preds = xgb_filtered['predicted'].values
+            xgb_correct = (xgb_y_test == xgb_preds).sum()
+            xgb_total = len(xgb_y_test)
+            xgb_acc = accuracy_score(xgb_y_test, xgb_preds)
+            
+            st.metric("Total Predictions", xgb_total)
+            st.metric("Correct Predictions", xgb_correct)
+            st.metric("Accuracy", f"{xgb_acc:.1%}")
+            
+            # Confusion matrix
+            xgb_cm = confusion_matrix(xgb_y_test, xgb_preds)
+            fig_xgb = px.imshow(
+                xgb_cm,
+                labels=dict(x="Predicted", y="Actual", color="Count"),
+                x=['No Win', 'Win'],
+                y=['No Win', 'Win'],
+                title=f"XGBoost Confusion Matrix ({year})",
+                color_continuous_scale='Reds',
+                text_auto=True
+            )
+            st.plotly_chart(fig_xgb, use_container_width=True, key="xgb_cm_predictions")
+        
+        # Classification Reports
+        st.subheader(f"📊 Detailed Classification Reports - {year}")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.metric(f"Total Predictions", total)
-            st.metric("Correct Predictions", correct)
-            st.metric("Accuracy", f"{acc:.1%}")
+            st.markdown("**Random Forest**")
+            rf_report = classification_report(rf_y_test, rf_preds, output_dict=True, zero_division=0)
+            rf_report_df = pd.DataFrame(rf_report).transpose()
+            st.dataframe(rf_report_df, use_container_width=True)
         
         with col2:
-            st.subheader(f"📊 Predictions Breakdown - {year}")
-            breakdown_df = pd.DataFrame({
-                'Category': [
-                    'True Negatives (Predicted No Win, Actual No Win)',
-                    'True Positives (Predicted Win, Actual Win)',
-                    'False Negatives (Predicted No Win, Actual Win)',
-                    'False Positives (Predicted Win, Actual No Win)'
-                ],
-                'Count': [
-                    ((preds == 0) & (y_test == 0)).sum(),
-                    ((preds == 1) & (y_test == 1)).sum(),
-                    ((preds == 0) & (y_test == 1)).sum(),
-                    ((preds == 1) & (y_test == 0)).sum()
-                ]
-            })
-            st.dataframe(breakdown_df, use_container_width=True)
+            st.markdown("**XGBoost**")
+            xgb_report = classification_report(xgb_y_test, xgb_preds, output_dict=True, zero_division=0)
+            xgb_report_df = pd.DataFrame(xgb_report).transpose()
+            st.dataframe(xgb_report_df, use_container_width=True)
         
-        st.subheader(f"✅ Classification Report - {year}")
-        report_dict = classification_report(y_test, preds, output_dict=True, zero_division=0)
-        report_df = pd.DataFrame(report_dict).transpose()
-        st.dataframe(report_df, use_container_width=True)
+        # Sample Predictions Comparison
+        st.subheader(f"� Sample Predictions Comparison - {year}")
         
-        st.subheader(f"🟦 Confusion Matrix - {year}")
-        cm = confusion_matrix(y_test, preds)
-        fig, ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
-        ax.set_xlabel("Predicted Win")
-        ax.set_ylabel("Actual Win")
-        ax.set_title(f"Confusion Matrix - {year}")
-        st.pyplot(fig)
+        # Merge predictions to show side by side
+        comparison_all = rf_filtered.merge(
+            xgb_filtered,
+            on=['year', 'round', 'win_rate', 'avg_points', 'actual'],
+            suffixes=('_rf', '_xgb')
+        )
         
-        # Show sample predictions
-        st.subheader(f"📋 Sample Predictions")
-        st.dataframe(pred_filtered[['year', 'round', 'win_rate', 'avg_points', 'actual', 'predicted']].head(20), use_container_width=True)
+        # Show a diverse sample: actual wins first, then other predictions
+        wins = comparison_all[comparison_all['actual'] == 1].head(10)
+        no_wins = comparison_all[comparison_all['actual'] == 0].head(10)
+        comparison_samples = pd.concat([wins, no_wins]).head(20)
+        
+        comparison_samples_display = comparison_samples[['year', 'round', 'win_rate', 'avg_points', 'actual', 'predicted_rf', 'predicted_xgb']].copy()
+        comparison_samples_display.columns = ['Year', 'Round', 'Win Rate', 'Avg Points', 'Actual Win', 'RF Prediction', 'XGB Prediction']
+        
+        # Add styling to highlight actual wins
+        def highlight_predictions(row):
+            if row['Actual Win'] == 1:
+                return ['background-color: #fff3cd'] * len(row)  # Yellow for actual wins
+            return [''] * len(row)
+        
+        styled_df = comparison_samples_display.style.apply(highlight_predictions, axis=1)
+        st.dataframe(styled_df, use_container_width=True)
+        
+        # Show statistics about the sample
+        total_in_sample = len(comparison_samples)
+        wins_in_sample = (comparison_samples['actual'] == 1).sum()
+        rf_correct = (comparison_samples['predicted_rf'] == comparison_samples['actual']).sum()
+        xgb_correct = (comparison_samples['predicted_xgb'] == comparison_samples['actual']).sum()
+        
+        st.caption(f"📊 Sample shows {wins_in_sample} actual wins out of {total_in_sample} predictions. RF got {rf_correct} correct, XGB got {xgb_correct} correct.")
+        
+        # Agreement statistics
+        merged_all = comparison_all
+        
+        agree = (merged_all['predicted_rf'] == merged_all['predicted_xgb']).sum()
+        total_merged = len(merged_all)
+        st.info(f"**Models Agreement**: Both models agree on {agree}/{total_merged} predictions ({agree/total_merged*100:.1f}%)")
+        
     else:
-        st.info(f"No predictions available for {year}")
+        st.info(f"No predictions available for {year} from both models")
+elif not df_preds.empty:
+    # Fallback to old single model display
+    st.info("Showing legacy predictions. Run train_comparison.py to see both models.")
+    pred_filtered = df_preds[df_preds["year"] == year].copy()
+    
+    if len(pred_filtered) > 0:
+        y_test = pred_filtered['actual'].values
+        preds = pred_filtered['predicted'].values
+        acc = accuracy_score(y_test, preds)
+        
+        st.metric("Accuracy", f"{acc:.1%}")
+        st.dataframe(pred_filtered[['year', 'round', 'win_rate', 'avg_points', 'actual', 'predicted']].head(20), use_container_width=True)
 else:
     st.info("No ML predictions available yet. Run the ML training service first.")
+
+# ==================== MODEL COMPARISON SECTION ====================
+st.divider()
+st.header("🤖 Model Comparison: Random Forest vs XGBoost")
+
+# Load model comparison data
+@st.cache_data(ttl=60)
+def load_model_comparison():
+    try:
+        return pd.read_sql("SELECT * FROM f1_model_comparison", engine)
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def load_rf_predictions():
+    try:
+        return pd.read_sql("SELECT * FROM f1_predictions_rf", engine)
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def load_xgb_predictions():
+    try:
+        return pd.read_sql("SELECT * FROM f1_predictions_xgb", engine)
+    except:
+        return pd.DataFrame()
+
+comparison_df = load_model_comparison()
+rf_preds_df = load_rf_predictions()
+xgb_preds_df = load_xgb_predictions()
+
+if not comparison_df.empty:
+    st.subheader("📊 Overall Model Performance")
+    
+    # Display comparison metrics
+    col1, col2, col3 = st.columns(3)
+    
+    rf_data = comparison_df[comparison_df['model'] == 'RandomForest'].iloc[0]
+    xgb_data = comparison_df[comparison_df['model'] == 'XGBoost'].iloc[0]
+    
+    with col1:
+        st.metric("Random Forest Accuracy", f"{rf_data['accuracy']:.2%}")
+        st.metric("Random Forest ROC-AUC", f"{rf_data['roc_auc']:.3f}")
+    
+    with col2:
+        st.metric("XGBoost Accuracy", f"{xgb_data['accuracy']:.2%}")
+        st.metric("XGBoost ROC-AUC", f"{xgb_data['roc_auc']:.3f}")
+    
+    with col3:
+        # Determine winner
+        best_model = "Random Forest" if rf_data['accuracy'] > xgb_data['accuracy'] else "XGBoost"
+        acc_diff = abs(rf_data['accuracy'] - xgb_data['accuracy']) * 100
+        st.metric("Best Model", best_model)
+        st.metric("Accuracy Difference", f"{acc_diff:.2f}%")
+    
+    # Bar chart comparison
+    st.subheader("📈 Performance Comparison")
+    
+    comp_melted = comparison_df.melt(
+        id_vars=['model'], 
+        value_vars=['accuracy', 'roc_auc'],
+        var_name='Metric',
+        value_name='Score'
+    )
+    
+    fig_comp = px.bar(
+        comp_melted,
+        x='Metric',
+        y='Score',
+        color='model',
+        barmode='group',
+        title='Model Performance Comparison',
+        labels={'Score': 'Score', 'Metric': 'Metric', 'model': 'Model'},
+        color_discrete_map={'RandomForest': '#2ecc71', 'XGBoost': '#e74c3c'}
+    )
+    st.plotly_chart(fig_comp, use_container_width=True, key="model_comp_bar")
+    
+    # Year-by-year comparison
+    if not rf_preds_df.empty and not xgb_preds_df.empty:
+        st.subheader("📅 Year-by-Year Comparison")
+        
+        # Calculate accuracy by year for both models
+        rf_by_year = rf_preds_df.groupby('year').apply(
+            lambda x: accuracy_score(x['actual'], x['predicted'])
+        ).reset_index()
+        rf_by_year.columns = ['year', 'accuracy']
+        rf_by_year['model'] = 'Random Forest'
+        
+        xgb_by_year = xgb_preds_df.groupby('year').apply(
+            lambda x: accuracy_score(x['actual'], x['predicted'])
+        ).reset_index()
+        xgb_by_year.columns = ['year', 'accuracy']
+        xgb_by_year['model'] = 'XGBoost'
+        
+        yearly_comp = pd.concat([rf_by_year, xgb_by_year])
+        
+        fig_yearly = px.line(
+            yearly_comp,
+            x='year',
+            y='accuracy',
+            color='model',
+            title='Model Accuracy Over Years',
+            labels={'year': 'Year', 'accuracy': 'Accuracy', 'model': 'Model'},
+            markers=True,
+            color_discrete_map={'Random Forest': '#2ecc71', 'XGBoost': '#e74c3c'}
+        )
+        st.plotly_chart(fig_yearly, use_container_width=True, key="yearly_comp_line")
+        
+        # Detailed comparison for selected year
+        st.subheader(f"🔍 Detailed Comparison for {year}")
+        
+        rf_year = rf_preds_df[rf_preds_df['year'] == year]
+        xgb_year = xgb_preds_df[xgb_preds_df['year'] == year]
+        
+        if len(rf_year) > 0 and len(xgb_year) > 0:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**Random Forest**")
+                rf_acc = accuracy_score(rf_year['actual'], rf_year['predicted'])
+                st.metric("Accuracy", f"{rf_acc:.2%}")
+                
+                # Confusion matrix
+                rf_cm = confusion_matrix(rf_year['actual'], rf_year['predicted'])
+                fig_rf_cm = px.imshow(
+                    rf_cm,
+                    labels=dict(x="Predicted", y="Actual", color="Count"),
+                    x=['No Win', 'Win'],
+                    y=['No Win', 'Win'],
+                    title=f"Random Forest Confusion Matrix ({year})",
+                    color_continuous_scale='Greens',
+                    text_auto=True
+                )
+                st.plotly_chart(fig_rf_cm, use_container_width=True, key="rf_cm_comparison")
+            
+            with col2:
+                st.write("**XGBoost**")
+                xgb_acc = accuracy_score(xgb_year['actual'], xgb_year['predicted'])
+                st.metric("Accuracy", f"{xgb_acc:.2%}")
+                
+                # Confusion matrix
+                xgb_cm = confusion_matrix(xgb_year['actual'], xgb_year['predicted'])
+                fig_xgb_cm = px.imshow(
+                    xgb_cm,
+                    labels=dict(x="Predicted", y="Actual", color="Count"),
+                    x=['No Win', 'Win'],
+                    y=['No Win', 'Win'],
+                    title=f"XGBoost Confusion Matrix ({year})",
+                    color_continuous_scale='Reds',
+                    text_auto=True
+                )
+                st.plotly_chart(fig_xgb_cm, use_container_width=True, key="xgb_cm_comparison")
+            
+            # Agreement analysis
+            st.subheader("🤝 Model Agreement Analysis")
+            
+            # Merge predictions on year and round
+            merged = rf_year.merge(
+                xgb_year, 
+                on=['year', 'round', 'win_rate', 'avg_points', 'actual'],
+                suffixes=('_rf', '_xgb')
+            )
+            
+            # Calculate agreement
+            merged['both_correct'] = (merged['predicted_rf'] == merged['actual']) & (merged['predicted_xgb'] == merged['actual'])
+            merged['both_wrong'] = (merged['predicted_rf'] != merged['actual']) & (merged['predicted_xgb'] != merged['actual'])
+            merged['rf_correct_only'] = (merged['predicted_rf'] == merged['actual']) & (merged['predicted_xgb'] != merged['actual'])
+            merged['xgb_correct_only'] = (merged['predicted_xgb'] == merged['actual']) & (merged['predicted_rf'] != merged['actual'])
+            
+            agreement_stats = pd.DataFrame({
+                'Category': [
+                    'Both Models Correct',
+                    'Both Models Wrong',
+                    'Only Random Forest Correct',
+                    'Only XGBoost Correct'
+                ],
+                'Count': [
+                    merged['both_correct'].sum(),
+                    merged['both_wrong'].sum(),
+                    merged['rf_correct_only'].sum(),
+                    merged['xgb_correct_only'].sum()
+                ]
+            })
+            
+            fig_agreement = px.pie(
+                agreement_stats,
+                values='Count',
+                names='Category',
+                title=f'Model Agreement Analysis ({year})',
+                color_discrete_sequence=['#2ecc71', '#e74c3c', '#3498db', '#f39c12']
+            )
+            st.plotly_chart(fig_agreement, use_container_width=True, key="agreement_pie")
+            
+            # Show agreement percentage
+            total = len(merged)
+            agree = (merged['predicted_rf'] == merged['predicted_xgb']).sum()
+            st.info(f"Models agree on {agree}/{total} predictions ({agree/total*100:.1f}%)")
+        else:
+            st.warning(f"No predictions available for {year} from both models")
+else:
+    st.info("No model comparison data available. Run the ML training with train_comparison.py first.")

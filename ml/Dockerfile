@@ -6,13 +6,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
-RUN pip install pandas scikit-learn psycopg2-binary sqlalchemy
+RUN pip install pandas scikit-learn psycopg2-binary sqlalchemy xgboost
 
 # Copy wait-for-postgres script
 COPY wait-for-postgres.sh .
 RUN chmod +x wait-for-postgres.sh
 
-# Copy train script
+# Copy train scripts
 COPY ml/train.py .
+COPY ml/train_comparison.py .
 
-CMD ["./wait-for-postgres.sh", "f1_postgres", "python", "train.py"]
+CMD ["./wait-for-postgres.sh", "f1_postgres", "python", "train_comparison.py"]
