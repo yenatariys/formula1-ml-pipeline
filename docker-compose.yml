@@ -41,6 +41,23 @@ services:
     networks:
       - f1_network
 
+  ml_train:
+    build: 
+      context: ./ml
+      dockerfile: ml_dockerfile
+    container_name: ml_train
+    command: ["./wait-for-postgres.sh", "f1_postgres", "python", "train.py"]
+    environment:
+      - DB_HOST = f1_postgres
+      - DB_NAME = f1_data
+      - DB_USER = admin
+      - DB_PASSWORD = admin123
+    depends_on:
+      - postgres
+      - etl
+    networks:
+      - f1_network
+
   dashboard:
 #    build: ./dashboard
 #      context: .
