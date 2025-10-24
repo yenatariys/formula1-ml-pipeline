@@ -28,7 +28,7 @@ def main():
     sdf = transform_data(df)
     
     # convert Spark DF ke pandas DF sebelum load
-    df_transformed = sdf.toPandas()
+    df_transformed = transform_data
     
     # load ke Postgres
     load_to_postgres(df_transformed)
