@@ -13,9 +13,6 @@ def transform_data(df):
     ### Convert pandas DataFrame ke Spark DataFrame
     sdf = spark.createDataFrame(df)
 
-    spark = SparkSession.builder.appName("F1_Transform").getOrCreate()
-    sdf = spark.createDataFrame(df)
-
     # Clean and format data
     sdf = sdf.withColumn("year", col("year").cast("int")) \
              .withColumn("round", col("round").cast("int")) \
@@ -29,7 +26,7 @@ def transform_data(df):
     sdf.write \
         .format("jdbc") \
         .option("url", "jdbc:postgresql://f1_postgres:5432/f1_data") \
-        .option("dbtable", "f1_results_tranformed") \
+        .option("dbtable", "f1_results_transformed") \
         .option("user", "admin") \
         .option("password", "admin123") \
         .mode("overwrite") \
