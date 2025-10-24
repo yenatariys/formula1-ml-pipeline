@@ -2,6 +2,12 @@ import pandas as pd
 import os
 
 def extract_data(data_dir="data/"):
+    # cek file ada atau tidak
+    for f in ["races.csv","results.csv","drivers.csv"]:
+        path = os.path.join(data_dir, f)
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{path} tidak ditemukan")
+
     # contoh extract race results
     races = pd.read_csv(os.path.join(data_dir, "races.csv"))
     results = pd.read_csv(os.path.join(data_dir, "results.csv"))
