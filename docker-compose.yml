@@ -27,10 +27,10 @@ services:
       - f1_network
 
   etl:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    image: devinluize12/formula1-ml-pipeline-etl:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # image: devinluize12/formula1-ml-pipeline-etl:latest
     container_name: etl_service
     # command: ["./wait-for-postgres.sh", "f1_postgres", "python", "etl/etl_pipeline.py"]  # Already in Dockerfile CMD
     ports:
@@ -43,10 +43,9 @@ services:
 
   ml_train:
     build: 
-      context: ./ml
-      dockerfile: ml_dockerfile
+      context: .
+      dockerfile: ./ml/Dockerfile
     container_name: ml_train
-    command: ["./wait-for-postgres.sh", "f1_postgres", "python", "train.py"]
     environment:
       - DB_HOST=f1_postgres
       - DB_NAME=f1_data
@@ -59,10 +58,10 @@ services:
       - f1_network
 
   dashboard:
-#    build: ./dashboard
-#      context: .
-#      dockerfile: Dockerfile  # buat Dockerfile terpisah untuk dashboard
-    image: devinluize12/formula1-ml-pipeline-dashboard
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    # image: devinluize12/formula1-ml-pipeline-dashboard
     container_name: f1_dashboard
     command: streamlit run dashboard/dashboard_app.py --server.port=8501
     ports:

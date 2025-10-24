@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
 import plotly.express as px
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -15,7 +15,8 @@ engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1
 # LOAD Race Results 
 @st.cache_data
 def load_results():
-    return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
+    return pd.read_sql("SELECT * FROM f1_results", engine)
+
 
 df = load_results()
 
@@ -50,47 +51,110 @@ st.subheader(f"Detailed Results - {year}")
 st.dataframe(filtered[["name", "round", "surname", "position", "points"]].sort_values(["round", "position"]), use_container_width=True)
 
 # LOAD ML Predictions
-@st.cache_data
+@st.cache_data(ttl=60)  # Cache for 60 seconds, then reload
 def load_predictions():
-    return pd.read_sql("SELECT * FROM f1_predictions", engine)
+    try:
+        return pd.read_sql("SELECT * FROM f1_predictions", engine)
+    except:
+        return pd.DataFrame()  # Return empty if table doesn't exist
 
 df_preds = load_predictions()
 
 # Dashboard Predictions
-st.subheader("🤖 Race Win Predictions")
-
-# Merge predictions dengan info driver/race
-df_preds_display = df_preds.merge(
-    df[["raceId","name","surname","year"]], on=["surname"], how="left"
-)
-
-# Filter predictions by season
-pred_filtered = df_preds_display[df_preds_display["year"] == year]
-
-# Driver Filter
-drivers = sorted(pred_filtered["surname"].unique())
-selected_driver = st.selectbox("Select Driver for Predictions", ["All"] + drivers)
-
-if selected_driver != "All":
-    pred_filtered_driver = pred_filtered[pred_filtered["surname"] == selected_driver]
+if not df_preds.empty:
+    st.subheader("🤖 Race Win Predictions")
+    
+    # Show overall stats
+    st.info(f"Total predictions in database: {len(df_preds)} across years {df_preds['year'].min():.0f}-{df_preds['year'].max():.0f}")
+    
+    # Filter predictions by season first
+    pred_filtered = df_preds[df_preds["year"] == year].copy()
+    
+    if len(pred_filtered) > 0:
+        # Merge predictions with race results to get driver names
+        # Match on year, round, and points to identify the driver
+        pred_with_drivers = pred_filtered.merge(
+            df[['year', 'round', 'points', 'surname', 'name']],
+            on=['year', 'round', 'points'],
+            how='left'
+        )
+        
+        # Driver Filter
+        available_drivers = sorted(pred_with_drivers['surname'].dropna().unique())
+        if len(available_drivers) > 0:
+            selected_driver = st.selectbox("Select Driver for Predictions", ["All Drivers"] + available_drivers)
+            
+            if selected_driver != "All Drivers":
+                pred_filtered_display = pred_with_drivers[pred_with_drivers['surname'] == selected_driver].copy()
+            else:
+                pred_filtered_display = pred_with_drivers.copy()
+        else:
+            st.warning("Could not match predictions to drivers. Showing all predictions.")
+            pred_filtered_display = pred_filtered.copy()
+            selected_driver = "All Drivers"
+        
+        # Get predictions for selected filter
+        y_test = pred_filtered_display['actual'].values
+        preds = pred_filtered_display['predicted'].values
+        
+        # Calculate metrics
+        correct = (y_test == preds).sum()
+        total = len(y_test)
+        acc = accuracy_score(y_test, preds)
+        
+        # Show filter context
+        filter_text = f" - {selected_driver}" if selected_driver != "All Drivers" else ""
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric(f"Total Predictions{filter_text}", total)
+            st.metric("Correct Predictions", correct)
+            st.metric("Accuracy", f"{acc:.1%}")
+        
+        with col2:
+            st.subheader(f"📊 Predictions Breakdown - {year}{filter_text}")
+            breakdown_df = pd.DataFrame({
+                'Category': [
+                    'True Negatives (Predicted No Win, Actual No Win)',
+                    'True Positives (Predicted Win, Actual Win)',
+                    'False Negatives (Predicted No Win, Actual Win)',
+                    'False Positives (Predicted Win, Actual No Win)'
+                ],
+                'Count': [
+                    ((preds == 0) & (y_test == 0)).sum(),
+                    ((preds == 1) & (y_test == 1)).sum(),
+                    ((preds == 0) & (y_test == 1)).sum(),
+                    ((preds == 1) & (y_test == 0)).sum()
+                ]
+            })
+            st.dataframe(breakdown_df, use_container_width=True)
+        
+        st.subheader(f"✅ Classification Report - {year}{filter_text}")
+        report_dict = classification_report(y_test, preds, output_dict=True, zero_division=0)
+        report_df = pd.DataFrame(report_dict).transpose()
+        st.dataframe(report_df, use_container_width=True)
+        
+        st.subheader(f"🟦 Confusion Matrix - {year}{filter_text}")
+        cm = confusion_matrix(y_test, preds)
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+        ax.set_xlabel("Predicted Win")
+        ax.set_ylabel("Actual Win")
+        ax.set_title(f"Confusion Matrix - {year}")
+        st.pyplot(fig)
+        
+        # Show sample predictions
+        st.subheader(f"📋 Sample Predictions{' - ' + selected_driver if selected_driver != 'All Drivers' else ''}")
+        
+        # Prepare display columns
+        display_cols = ['year', 'round']
+        if 'surname' in pred_filtered_display.columns and 'name' in pred_filtered_display.columns:
+            display_cols.extend(['surname', 'name'])
+        display_cols.extend(['points', 'actual', 'predicted'])
+        
+        st.dataframe(pred_filtered_display[display_cols].head(20), use_container_width=True)
+    else:
+        st.info(f"No predictions available for {year}")
 else:
-    pred_filtered_driver = pred_filtered
-
-y_test = pred_filtered_driver['actual'].values
-preds = pred_filtered_driver['predicted'].values
-
-st.subheader(f"✅ Classification Report - {year} - {selected_driver}")
-if len(y_test) > 0:
-    report_dict = classification_report(y_test, preds, output_dict=True)
-    report_df = pd.DataFrame(report_dict).transpose()
-    st.dataframe(report_df)
-
-    st.subheader(f"🟦 Confusion Matrix - {year} - {selected_driver}")
-    cm = confusion_matrix(y_test, preds)
-    fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("Actual")
-    st.pyplot(fig)
-else:
-    st.write("No data available for this driver in the selected season")
+    st.info("No ML predictions available yet. Run the ML training service first.")

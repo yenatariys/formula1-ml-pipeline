@@ -2,12 +2,12 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 
 def transform_data(df):
-    """Transform pandas dataframe using Spark  and save to Postgres"""
+    """Transform pandas dataframe using Spark and save to Postgres"""
 
-    ### Connect to Spark master di docker compose
+    ### Use Spark in local mode (no need for external Spark cluster)
     spark = SparkSession.builder \
         .appName("F1_Transform") \
-        .master("spark://spark-master:7077") \
+        .master("local[*]") \
         .getOrCreate()
     
     ### Convert pandas DataFrame ke Spark DataFrame
@@ -22,15 +22,5 @@ def transform_data(df):
     # Filter out null positions (DNF, DNS, etc.)
     sdf = sdf.filter(col("position").isNotNull())
 
-    # Simpan hasil transformasi ke Postgres
-    sdf.write \
-        .format("jdbc") \
-        .option("url", "jdbc:postgresql://f1_postgres:5432/f1_data") \
-        .option("dbtable", "f1_results_transformed") \
-        .option("user", "admin") \
-        .option("password", "admin123") \
-        .mode("overwrite") \
-        .save()
-
-    print("Transformation complete and saved to Postgres.")
+    print("Transformation complete.")
     return sdf
