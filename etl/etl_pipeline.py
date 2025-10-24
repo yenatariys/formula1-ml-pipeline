@@ -1,10 +1,12 @@
+# etl_pipeline.py
 from extract_data import extract_data
-from load_data import load_to_postgres
-from transform_data import transform_data  # import fungsi transformasi
+from transform_data import transform_data
 import time
 import psycopg2
 
-# tunggu Postgres siap
+# -----------------------------------------------------------
+# Tunggu Postgres siap
+# -----------------------------------------------------------
 while True:
     try:
         conn = psycopg2.connect(
@@ -15,23 +17,32 @@ while True:
             port=5432
         )
         conn.close()
-        print("Postgres ready!")
+        print("Postgres is ready!")
         break
     except psycopg2.OperationalError:
         print("Waiting for Postgres...")
         time.sleep(2)
 
+# -----------------------------------------------------------
+# Main ETL function
+# -----------------------------------------------------------
 def main():
-    df = extract_data(data_dir="data/")  # extract pandas DF dari CSV
-    
-    # transform pake Spark
-    sdf = transform_data(df)
-    
-    # convert Spark DF ke pandas DF sebelum load
-    df_transformed = sdf.toPandas()
-    
-    # load ke Postgres
-    load_to_postgres(df_transformed)
+    print("Starting ETL pipeline...")
 
+    # 1️⃣ Extract
+    df = extract_data(data_dir="data/")  # pandas DataFrame dari CSV
+    print(f"Extracted {len(df)} records")
+
+    # 2️⃣ Transform (Spark)
+    sdf = transform_data(df)  # Spark DataFrame, sekaligus tersimpan di Postgres
+    print("Transformation complete and saved to Postgres")
+
+    # 3️⃣ (Opsional) jika mau cek hasil di pandas
+    # df_transformed = sdf.toPandas()
+    # print(df_transformed.head())
+
+    print("ETL pipeline finished successfully!")
+
+# -----------------------------------------------------------
 if __name__ == "__main__":
     main()
