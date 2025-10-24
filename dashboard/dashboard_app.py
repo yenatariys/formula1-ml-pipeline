@@ -424,14 +424,12 @@ if not rf_preds_df.empty and not xgb_preds_df.empty:
         comparison_samples_display = comparison_samples[['year', 'round', 'win_rate', 'avg_points', 'actual', 'predicted_rf', 'predicted_xgb']].copy()
         comparison_samples_display.columns = ['Year', 'Round', 'Win Rate', 'Avg Points', 'Actual Win', 'RF Prediction', 'XGB Prediction']
         
-        # Add styling to highlight actual wins
-        def highlight_predictions(row):
-            if row['Actual Win'] == 1:
-                return ['background-color: #fff3cd'] * len(row)  # Yellow for actual wins
-            return [''] * len(row)
+        # Convert to int for cleaner display
+        comparison_samples_display['Actual Win'] = comparison_samples_display['Actual Win'].astype(int)
+        comparison_samples_display['RF Prediction'] = comparison_samples_display['RF Prediction'].astype(int)
+        comparison_samples_display['XGB Prediction'] = comparison_samples_display['XGB Prediction'].astype(int)
         
-        styled_df = comparison_samples_display.style.apply(highlight_predictions, axis=1)
-        st.dataframe(styled_df, use_container_width=True)
+        st.dataframe(comparison_samples_display, use_container_width=True)
         
         # Show statistics about the sample
         total_in_sample = len(comparison_samples)
