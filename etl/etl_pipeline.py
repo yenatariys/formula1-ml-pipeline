@@ -35,8 +35,8 @@ def main():
     # convert Spark DF ke pandas DF sebelum load
     df_transformed = sdf.toPandas()
     
-    # load ke Postgres
-    load_to_postgres(df_transformed)
+    # load ke Postgres dengan nama tabel hasil transformasi
+    load_to_postgres(df_transformed, "f1_results_transformed")
 
     print("ETL pipeline finished successfully!")
 
