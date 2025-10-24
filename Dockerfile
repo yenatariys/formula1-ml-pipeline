@@ -26,4 +26,4 @@ COPY wait-for-postgres.sh .
 RUN chmod +x wait-for-postgres.sh
 
 # Jalankan ETL
-CMD ["python", "etl/etl_pipeline.py"]
+CMD ["./wait-for-postgres.sh", "f1_postgres", "python", "etl/etl_pipeline.py"]
