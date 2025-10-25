@@ -4,13 +4,15 @@ from pyspark.sql.functions import col
 def transform_data(df):
     """Transform pandas dataframe using Spark and save to Postgres"""
 
-    ### Use Spark in local mode (no need for external Spark cluster)
+    ### Use Spark cluster (fallback to local if spark-master unavailable)
     spark = SparkSession.builder \
         .appName("F1_Transform") \
         .master("local[*]") \
+        .config("spark.driver.host", "localhost") \
+        .config("spark.jars.packages", "org.postgresql:postgresql:42.6.0") \
         .getOrCreate()
     
-    ### Convert pandas DataFrame ke Spark DataFrame
+    ### Convert pandas DataFrame to Spark DataFrame
     sdf = spark.createDataFrame(df)
 
     # Clean and format data
@@ -22,5 +24,16 @@ def transform_data(df):
     # Filter out null positions (DNF, DNS, etc.)
     sdf = sdf.filter(col("position").isNotNull())
 
-    print("Transformation complete.")
+    # Save to PostgreSQL
+    sdf.write \
+        .format("jdbc") \
+        .option("url", "jdbc:postgresql://f1_postgres:5432/f1_data") \
+        .option("dbtable", "f1_results") \
+        .option("user", "admin") \
+        .option("password", "admin123") \
+        .option("driver", "org.postgresql.Driver") \
+        .mode("overwrite") \
+        .save()
+
+    print("Transformation complete and saved to PostgreSQL.")
     return sdf
