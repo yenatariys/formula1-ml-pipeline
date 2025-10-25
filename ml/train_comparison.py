@@ -17,7 +17,7 @@ conn = psycopg2.connect(
     password=os.getenv('DB_PASSWORD')
 )
 
-df = pd.read_sql("SELECT * FROM f1_results", conn)
+df = pd.read_sql("SELECT * FROM f1_results_transformed", conn)
 conn.close()
 
 print(f"Loaded {len(df)} rows from database")
