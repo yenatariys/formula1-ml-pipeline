@@ -37,7 +37,7 @@ def main():
     df_transformed = sdf.toPandas()
     
     # load ke Postgres
-    load_to_postgres(df_transformed, "f1_results")
+    load_to_postgres(df_transformed, "f1_results_transformed")
 
     print("ETL pipeline finished successfully!")
 
