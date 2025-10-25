@@ -28,7 +28,7 @@ def transform_data(df):
     sdf.write \
         .format("jdbc") \
         .option("url", "jdbc:postgresql://f1_postgres:5432/f1_data") \
-        .option("dbtable", "f1_results") \
+        .option("dbtable", "f1_results_transformed") \
         .option("user", "admin") \
         .option("password", "admin123") \
         .option("driver", "org.postgresql.Driver") \
