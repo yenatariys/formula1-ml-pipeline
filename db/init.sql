@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS race_results (
+CREATE TABLE IF NOT EXISTS f1_results_transformed (
     race_id SERIAL PRIMARY KEY,
     season INT,
     round INT,
