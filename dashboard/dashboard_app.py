@@ -15,7 +15,7 @@ engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1
 # LOAD Race Results 
 @st.cache_data
 def load_results():
-    return pd.read_sql("SELECT * FROM f1_results", engine)
+    return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
 
 
 df = load_results()
