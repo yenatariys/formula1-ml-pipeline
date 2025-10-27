@@ -14,6 +14,11 @@ services:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - f1_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d f1_data -h localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   spark-master:
     image: apache/spark:latest
@@ -63,7 +68,8 @@ services:
       dockerfile: Dockerfile
     # image: devinluize12/formula1-ml-pipeline-dashboard
     container_name: f1_dashboard
-    command: streamlit run dashboard/dashboard_app.py --server.port=8501
+    # wait script will check that table exists before starting streamlit
+    command: bash -c "python /app/docker/wait_for_table.py && streamlit run dashboard/dashboard_app.py --server.port=8501"
     ports:
       - "8501:8501"
     depends_on:
