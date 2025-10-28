@@ -15,5 +15,6 @@ RUN chmod +x wait-for-postgres.sh
 # Copy train scripts
 COPY ml/train.py .
 COPY ml/train_comparison.py .
+COPY ml/train_with_best_params.py .
 
 CMD ["./wait-for-postgres.sh", "f1_postgres", "python", "train_comparison.py"]
