@@ -39,11 +39,14 @@ Key additions:
 
 ## Running the Spark MLlib job
 
-1. Make sure the Spark cluster in `docker-compose.yml` is up (`spark-master`
-   + workers if configured) and the feature source CSV is available at the
-   path referenced by `F1_FEATURE_SOURCE` (defaults to
-   `/app/f1_results_transformed.csv`).
-2. Submit the job from the repo root (WSL/Docker container):
+1. Run `python etl/export_joined_results.py` once to materialise the joined
+  dataset (`data/f1_results_joined.csv`) produced by
+  `etl/extract_data.py`.
+2. Make sure the Spark cluster in `docker-compose.yml` is up (`spark-master`
+  + workers if configured) and the feature source CSV is available at the
+  path referenced by `F1_FEATURE_SOURCE` (defaults to
+  `/app/data/f1_results_joined.csv`).
+3. Submit the job from the repo root (WSL/Docker container):
 
    ```bash
    spark-submit \
@@ -54,7 +57,8 @@ Key additions:
 
    Optional environment variables:
 
-   - `F1_FEATURE_SOURCE`: Path or URI to the input CSV.
+   - `F1_FEATURE_SOURCE`: Path or URI to the input CSV (e.g.,
+     `/app/data/f1_results_joined.csv`).
    - `F1_FEATURE_STORE_PATH`: Where engineered features are stored.
    - `F1_MLLIB_MODEL_PATH`, `F1_MLLIB_PREDICTIONS_PATH`.
    - `F1_RF_NUM_TREES`, `F1_RF_MAX_DEPTH`, `F1_TRAIN_FRACTION`.

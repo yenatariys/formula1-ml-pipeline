@@ -48,7 +48,7 @@ def _build_spark_session() -> SparkSession:
 def _load_source_dataframe(spark: SparkSession) -> DataFrame:
     """Load the source dataset from CSV (or another format in the future)."""
 
-    source_path = os.getenv("F1_FEATURE_SOURCE", "/app/f1_results_transformed.csv")
+    source_path = os.getenv("F1_FEATURE_SOURCE", "/app/data/f1_results_joined.csv")
     if not source_path:
         raise ValueError("F1_FEATURE_SOURCE environment variable must be set")
 
