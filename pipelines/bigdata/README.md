@@ -1,4 +1,4 @@
-# Big Data Pipelines
+# 04 – Big Data Pipelines
 
 This folder houses the distributed workflows that power the Formula 1 feature store and deep-learning models. The Spark job engineers large-scale driver features, and the TensorFlow trainer consumes those artefacts for neural-network experiments.
 
@@ -47,6 +47,11 @@ This folder houses the distributed workflows that power the Formula 1 feature st
    - Spark metrics: `artifacts/evaluations/mllib_driver_win_metrics.json`
    - TensorFlow metrics: `artifacts/evaluations/tf_driver_win_metrics.json`
    - Models: `artifacts/models/`
+
+## Visualising results
+- Start the big data dashboard service: `docker-compose up -d dashboard_bigdata`.
+- Browse to `http://localhost:8502` for artefact status, feature previews, and Spark/TensorFlow metric panels.
+- Full walkthrough: `docs/runbooks/04-bigdata-ml-workflow.md`.
 
 ## Key environment variables
 | Variable | Default | Purpose |

@@ -1,0 +1,16 @@
+docker-compose : time="2025-10-24T22:43:58+07:00" level=warning 
+msg="D:\Work\Github\formula1-ml-pipeline\docker-compose.yml: the attribute `version` is 
+obsolete, it will be ignored, please remove it to avoid potential confusion"
+At line:1 char:1
++ docker-compose run --rm ml_train 2>&1 | Tee-Object -FilePath train_ou ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2025-10-2...tial confusion":String) [], R 
+   emoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ Container f1_postgres  Running
+ Container spark-master  Starting
+ Container spark-master  Started
+ Container etl_service  Starting
+ Container etl_service  Started
+f1_postgres:5432 - accepting connections

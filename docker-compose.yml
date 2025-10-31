@@ -116,18 +116,31 @@ services:
     networks:
       - f1_network
 
-  dashboard:
+  dashboard_classic:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
-    # image: devinluize12/formula1-ml-pipeline-dashboard
-    container_name: f1_dashboard
-    # wait script will check that table exists before starting streamlit
-    command: bash -c "python /app/docker/wait_for_table.py && streamlit run dashboard/dashboard_app.py --server.port=8501"
+    container_name: f1_dashboard_classic
+    command: bash -c "python /app/docker/wait_for_table.py && streamlit run dashboard/classic_app.py --server.port=8501 --server.address=0.0.0.0"
     ports:
       - "8501:8501"
     depends_on:
       - postgres
+    volumes:
+      - .:/app
+    networks:
+      - f1_network
+
+  dashboard_bigdata:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: f1_dashboard_bigdata
+    command: bash -c "streamlit run dashboard/bigdata_app.py --server.port=8502 --server.address=0.0.0.0"
+    ports:
+      - "8502:8502"
+    depends_on:
+      - spark-master
     volumes:
       - .:/app
     networks:

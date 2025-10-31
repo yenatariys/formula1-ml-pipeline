@@ -1,4 +1,4 @@
-# Classic Machine Learning Pipelines
+# 03 – Classic Machine Learning Pipelines
 
 This directory contains the lightweight, scikit-learn based trainers that operate on the curated race history stored in PostgreSQL. They are designed for fast iteration on a single machine or within the `ml_train` Docker service.
 
@@ -40,6 +40,11 @@ Ensure the database environment variables are set beforehand. Predictions and co
 ## Output locations
 - Model metrics appear in the terminal log.
 - Prediction tables and comparison summaries are written to PostgreSQL, enabling dashboards or notebooks to consume the results immediately.
+
+## Visualising results
+- Launch the classic dashboard service: `docker-compose up -d dashboard_classic`.
+- Open `http://localhost:8501` to explore race analytics and model comparisons backed by the classic pipeline tables.
+- Full walkthrough: `docs/runbooks/03-classic-ml-workflow.md`.
 
 ## Troubleshooting
 - If you see auth errors, verify the environment variables and that Postgres is reachable.
