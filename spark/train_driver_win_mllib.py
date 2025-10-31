@@ -55,6 +55,7 @@ def _load_source_dataframe(spark: SparkSession) -> DataFrame:
     df = (
         spark.read.option("header", "true")
         .option("inferSchema", "true")
+        .option("nullValue", "\\N")
         .csv(source_path)
     )
 
@@ -65,6 +66,8 @@ def _load_source_dataframe(spark: SparkSession) -> DataFrame:
     missing = required_columns.difference(df.columns)
     if missing:
         raise ValueError(f"Missing required columns for feature engineering: {sorted(missing)}")
+
+    df = df.na.drop(subset=list(required_columns | {"position"}))
 
     return df
 
