@@ -22,7 +22,7 @@ services:
 
   spark-master:
     build:
-      context: ./spark
+      context: ./pipelines/bigdata/spark
     container_name: spark-master
     command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
     environment:
@@ -41,7 +41,7 @@ services:
 
   spark-worker-1:
     build:
-      context: ./spark
+      context: ./pipelines/bigdata/spark
     container_name: spark-worker-1
     command:
       ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
@@ -64,7 +64,7 @@ services:
 
   spark-worker-2:
     build:
-      context: ./spark
+      context: ./pipelines/bigdata/spark
     container_name: spark-worker-2
     command:
       ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
