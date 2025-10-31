@@ -30,7 +30,7 @@ This folder houses the distributed workflows that power the Formula 1 feature st
 
 2. **Engineer features with Spark MLlib**
    ```powershell
-   docker-compose exec spark-master spark-submit /app/pipelines/bigdata/spark/train_driver_win_mllib.py
+   docker-compose exec spark-master /opt/spark/bin/spark-submit /app/pipelines/bigdata/spark/train_driver_win_mllib.py
    ```
    - The job reads from `F1_FEATURE_SOURCE` (default `/app/data/f1_results_joined.csv`).
    - Engineered features are saved to `/app/artifacts/feature_store` (Parquet + CSV) and metrics/models land in `/app/artifacts/evaluations` and `/app/artifacts/models`.
