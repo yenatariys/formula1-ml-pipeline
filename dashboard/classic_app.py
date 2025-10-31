@@ -376,18 +376,18 @@ if not rf_preds_df.empty and not xgb_preds_df.empty:
             st.metric("Correct Predictions", xgb_correct)
             st.metric("Accuracy", f"{xgb_acc:.1%}")
             
-            # Confusion matrix
-            xgb_cm = confusion_matrix(xgb_y_test, xgb_preds)
-            fig_xgb = px.imshow(
-                xgb_cm,
-                labels=dict(x="Predicted", y="Actual", color="Count"),
-                x=['No Win', 'Win'],
-                y=['No Win', 'Win'],
-                title=f"XGBoost Confusion Matrix ({year})",
-                color_continuous_scale='Reds',
-                text_auto=True
-            )
-            st.plotly_chart(fig_xgb, use_container_width=True, key="xgb_cm_predictions")
+            # # Confusion matrix
+            # xgb_cm = confusion_matrix(xgb_y_test, xgb_preds)
+            # fig_xgb = px.imshow(
+            #     xgb_cm,
+            #     labels=dict(x="Predicted", y="Actual", color="Count"),
+            #     x=['No Win', 'Win'],
+            #     y=['No Win', 'Win'],
+            #     title=f"XGBoost Confusion Matrix ({year})",
+            #     color_continuous_scale='Reds',
+            #     text_auto=True
+            # )
+            # st.plotly_chart(fig_xgb, use_container_width=True, key="xgb_cm_predictions")
         
         # Classification Reports
         st.subheader(f"📊 Detailed Classification Reports - {year}")
