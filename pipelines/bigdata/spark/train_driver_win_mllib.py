@@ -2,7 +2,7 @@
 
 This module demonstrates a scalable feature engineering and model training
 workflow that can be submitted to a Spark cluster. It consumes the
-``f1_results_transformed.csv`` dataset (or another CSV specified via the
+``f1_results_joined.csv`` dataset (or another CSV specified via the
 ``F1_FEATURE_SOURCE`` environment variable), computes rolling performance
 features per driver using Spark window functions, trains a Random Forest
 classifier with Spark MLlib, and persists both the fitted PipelineModel and
