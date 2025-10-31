@@ -144,6 +144,22 @@ services:
     networks:
       - f1_network
 
+  neo4j:
+    image: neo4j:5.22
+    container_name: f1_neo4j
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/neo4j123}
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - ./neo4j/data:/data
+      - ./neo4j/logs:/logs
+      - ./neo4j/import:/import
+    networks:
+      - f1_network
+    restart: unless-stopped
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: f1_pgadmin

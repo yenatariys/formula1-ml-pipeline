@@ -101,6 +101,7 @@ flowchart TB
 | `dashboard_classic` | Streamlit app on port 8501 reading Postgres tables. |
 | `dashboard_bigdata` | Streamlit app on port 8502 visualising artefacts in `artifacts/`. |
 | `pgadmin` | Optional Postgres UI for manual inspection. |
+| `neo4j` | Optional knowledge graph store backing the graph analytics export. |
 
 ## Contribution tips
 

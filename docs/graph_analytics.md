@@ -52,19 +52,31 @@ Leave the Neo4j variables unset if you only need local CSV outputs. Failures in
 this optional step are logged but will not stop the ETL pipeline.
 
 ### Optional: push results to Neo4j
-Provide your Neo4j connection details to load the same graph into a live
-database (requires the `py2neo` dependency already listed in `requirements.txt`):
+Spin up the bundled Neo4j container (data persists in `neo4j/` within the repo):
+
+```powershell
+docker-compose up -d neo4j
+```
+
+Set a stronger password by exporting `NEO4J_AUTH=neo4j/<your-secret>` in a
+`.env` file before starting the container if desired.
+
+With the service running, provide your Neo4j connection details to load the
+same graph into the live database (requires the `py2neo` dependency already
+listed in `requirements.txt`):
 
 ```powershell
 python analytics/graph_analysis.py `
   --neo4j-uri bolt://localhost:7687 `
   --neo4j-user neo4j `
-  --neo4j-password s3cr3t `
+  --neo4j-password neo4j123 `
   --neo4j-wipe
 ```
 
 The `--neo4j-wipe` flag clears existing nodes and relationships first. Omit it
-if you prefer to merge into an existing dataset.
+if you prefer to merge into an existing dataset. Access the Neo4j Browser at
+`http://localhost:7474` (or replace `localhost` with your LAN IP when sharing
+on the network).
 
 ## 3. Next steps
 - Build additional edges (for example, driver-to-driver rivalry edges based on
