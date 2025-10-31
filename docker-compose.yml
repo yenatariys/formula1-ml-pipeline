@@ -40,8 +40,7 @@ services:
     restart: unless-stopped
 
   spark-worker-1:
-    build:
-      context: ./pipelines/bigdata/spark
+    image: yenatari/formula1-ml-pipeline-spark-worker-1:latest
     container_name: spark-worker-1
     command:
       ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
@@ -63,8 +62,7 @@ services:
     restart: unless-stopped
 
   spark-worker-2:
-    build:
-      context: ./pipelines/bigdata/spark
+    image: yenatari/formula1-ml-pipeline-spark-worker-1:latest
     container_name: spark-worker-2
     command:
       ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
