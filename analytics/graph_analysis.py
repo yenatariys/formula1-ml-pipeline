@@ -13,13 +13,26 @@ CSV for further analysis.
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, Tuple, Any, Optional
+from typing import Dict, Iterable, Tuple, Any, Optional, List
 
 import networkx as nx
 import pandas as pd
 
 NODE_TYPES = {"driver", "constructor", "circuit"}
+
+
+def _chunked(items: Iterable[Any], size: int) -> Iterable[List[Any]]:
+    """Yield successive lists of length *size* from *items*."""
+    batch: List[Any] = []
+    for item in items:
+        batch.append(item)
+        if len(batch) >= size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
 
 
 def parse_args() -> argparse.Namespace:
@@ -215,41 +228,61 @@ def export_to_neo4j(nx_graph: nx.Graph, uri: str, user: str, password: str, wipe
     if wipe:
         neo.run("MATCH (n) DETACH DELETE n")
 
-    tx = neo.begin()
-    node_labels: Dict[str, str] = {}
+    batch_size = 500
 
+    def _sanitize_label(raw: str) -> str:
+        cleaned = "".join(ch for ch in raw if ch.isalnum() or ch == "_")
+        return cleaned or "Entity"
+
+    nodes_by_label: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for node_id, data in nx_graph.nodes(data=True):
-        label = data.get("type", "Entity").capitalize()
-        node_labels[node_id] = label
+        label = _sanitize_label(data.get("type", "Entity").capitalize())
         props = {"id": node_id, "name": data.get("label")}
         for key, value in data.items():
             if key in {"type", "label"}:
                 continue
             props[key] = value
-        tx.run(
-            f"MERGE (n:{label} {{id: $id}}) SET n += $props",
-            id=node_id,
-            props=props,
-        )
+        nodes_by_label[label].append({"id": node_id, "props": props})
 
+    for label, rows in nodes_by_label.items():
+        if not rows:
+            continue
+        query = (
+            f"UNWIND $rows AS row "
+            f"MERGE (n:{label} {{id: row.id}}) "
+            "SET n += row.props"
+        )
+        for batch in _chunked(rows, batch_size):
+            neo.run(query, rows=batch)
+
+    rel_batches: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for source, target, attr in nx_graph.edges(data=True):
         relations = attr.get("relations", {"RELATED"})
         weight = attr.get("weight", 1)
         relation_types = sorted(relations)
         ordered_source, ordered_target = sorted([source, target])
         for rel in relation_types:
-            rel_type = rel.upper()
-            tx.run(
-                f"MATCH (a {{id: $source_id}}), (b {{id: $target_id}}) "
-                f"MERGE (a)-[r:{rel_type}]->(b) "
-                "SET r.weight = $weight, r.relation_types = $relation_types",
-                source_id=ordered_source,
-                target_id=ordered_target,
-                weight=weight,
-                relation_types=relation_types,
+            rel_type = _sanitize_label(rel.upper())
+            rel_batches[rel_type].append(
+                {
+                    "source_id": ordered_source,
+                    "target_id": ordered_target,
+                    "weight": weight,
+                    "relation_types": relation_types,
+                }
             )
 
-    tx.commit()
+    for rel_type, rows in rel_batches.items():
+        if not rows:
+            continue
+        query = (
+            "UNWIND $rows AS row "
+            "MATCH (a {id: row.source_id}), (b {id: row.target_id}) "
+            f"MERGE (a)-[r:{rel_type}]->(b) "
+            "SET r.weight = row.weight, r.relation_types = row.relation_types"
+        )
+        for batch in _chunked(rows, batch_size):
+            neo.run(query, rows=batch)
     print("Neo4j export completed.")
 
 
