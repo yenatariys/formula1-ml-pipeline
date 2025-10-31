@@ -78,6 +78,65 @@ if you prefer to merge into an existing dataset. Access the Neo4j Browser at
 `http://localhost:7474` (or replace `localhost` with your LAN IP when sharing
 on the network).
 
+### Explore in Neo4j Browser
+
+Once the graph is loaded, try the Cypher snippets below. Run them in the Neo4j
+Browser and switch to the Graph or Table panes depending on the insight you
+need.
+
+1. **Driver career breadth** – list every circuit a driver has raced on.
+  ```cypher
+  MATCH (d:Driver {name: "Lewis Hamilton"})-[:DRIVER_CIRCUIT]-(c:Circuit)
+  RETURN d, c;
+  ```
+  Switch the Neo4j Browser to Graph view to visualise the driver node linked to each circuit. If you only need a tabular list, append `RETURN d.name AS driver, collect(DISTINCT c.name) AS circuits ORDER BY size(circuits) DESC` instead. See `docs/graph_sample_insights.md` for a captured example and deeper commentary.
+
+2. **Circuit popularity leaderboard** – rank tracks by unique participating drivers and total starts.
+  ```cypher
+  MATCH (d:Driver)-[r:DRIVER_CIRCUIT]-(c:Circuit)
+  RETURN c.name AS circuit,
+       count(DISTINCT d) AS driverCount,
+       sum(r.weight) AS starts
+  ORDER BY driverCount DESC
+  LIMIT 10;
+  ```
+  Highlights venues that appear most across the dataset and the breadth of
+  driver attendance at each.
+
+3. **Driver–constructor partnerships** – show which constructor a driver raced for at a specific circuit.
+  ```cypher
+  MATCH (d:Driver)-[:DRIVER_CONSTRUCTOR]-(con:Constructor),
+    (d)-[:DRIVER_CIRCUIT]-(c:Circuit)
+  WHERE c.name = "Silverstone Circuit"
+  RETURN d.name AS driver, con.name AS constructor
+  ORDER BY driver;
+  ```
+  Useful for spotting historical team allegiances at individual venues.
+
+4. **Shared circuit experience** – find other drivers who have raced the same tracks as your target driver.
+  ```cypher
+  MATCH (d1:Driver {name: "Fernando Alonso"})-[:DRIVER_CIRCUIT]-(c:Circuit)
+  MATCH (d2:Driver)-[:DRIVER_CIRCUIT]-(c)
+  WHERE d1 <> d2
+  RETURN d2.name AS peer, collect(DISTINCT c.name) AS sharedCircuits,
+       size(sharedCircuits) AS overlap
+  ORDER BY overlap DESC
+  LIMIT 10;
+  ```
+  Identifies comparable drivers based on overlapping race venues.
+
+5. **Time-filtered circuit activity** – constrain relationships to recent seasons.
+  ```cypher
+  MATCH (d:Driver)-[r:DRIVER_CIRCUIT {season: 2020}]-(c:Circuit)
+  RETURN c.name AS circuit,
+       count(DISTINCT d) AS driverCount,
+       sum(r.weight) AS raceStarts2020
+  ORDER BY raceStarts2020 DESC
+  LIMIT 5;
+  ```
+  Requires the relationship to retain a `season` property; adjust the year or
+  extend the WHERE clause for ranges.
+
 ## 3. Next steps
 - Build additional edges (for example, driver-to-driver rivalry edges based on
   wheel-to-wheel battles or podium co-appearances).
