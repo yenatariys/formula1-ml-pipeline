@@ -29,6 +29,21 @@ The script prints the top drivers, constructors, and circuits ranked by weighted
 degree and betweenness centrality. Exported CSVs contain the same tables for
 further analysis.
 
+### Optional: push results to Neo4j
+Provide your Neo4j connection details to load the same graph into a live
+database (requires the `py2neo` dependency already listed in `requirements.txt`):
+
+```powershell
+python analytics/graph_analysis.py `
+  --neo4j-uri bolt://localhost:7687 `
+  --neo4j-user neo4j `
+  --neo4j-password s3cr3t `
+  --neo4j-wipe
+```
+
+The `--neo4j-wipe` flag clears existing nodes and relationships first. Omit it
+if you prefer to merge into an existing dataset.
+
 ## 3. Next steps
 - Build additional edges (for example, driver-to-driver rivalry edges based on
   wheel-to-wheel battles or podium co-appearances).

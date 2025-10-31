@@ -54,6 +54,29 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional directory to export ranked tables as CSV",
     )
+    parser.add_argument(
+        "--neo4j-uri",
+        type=str,
+        default=None,
+        help="Bolt URI for Neo4j (e.g. bolt://localhost:7687). Enables Neo4j export.",
+    )
+    parser.add_argument(
+        "--neo4j-user",
+        type=str,
+        default=None,
+        help="Neo4j username (required when --neo4j-uri is provided)",
+    )
+    parser.add_argument(
+        "--neo4j-password",
+        type=str,
+        default=None,
+        help="Neo4j password (required when --neo4j-uri is provided)",
+    )
+    parser.add_argument(
+        "--neo4j-wipe",
+        action="store_true",
+        help="If set, clears existing nodes and relationships before loading.",
+    )
     return parser.parse_args()
 
 
@@ -180,6 +203,56 @@ def export_tables(export_dir: Path, tables: Dict[str, pd.DataFrame]) -> None:
         print(f"Saved {out_path}")
 
 
+def export_to_neo4j(nx_graph: nx.Graph, uri: str, user: str, password: str, wipe: bool) -> None:
+    try:
+        from py2neo import Graph as NeoGraph
+    except ImportError as exc:
+        raise RuntimeError(
+            "py2neo is required for Neo4j export. Install it via 'pip install py2neo'."
+        ) from exc
+
+    neo = NeoGraph(uri, auth=(user, password))
+    if wipe:
+        neo.run("MATCH (n) DETACH DELETE n")
+
+    tx = neo.begin()
+    node_labels: Dict[str, str] = {}
+
+    for node_id, data in nx_graph.nodes(data=True):
+        label = data.get("type", "Entity").capitalize()
+        node_labels[node_id] = label
+        props = {"id": node_id, "name": data.get("label")}
+        for key, value in data.items():
+            if key in {"type", "label"}:
+                continue
+            props[key] = value
+        tx.run(
+            f"MERGE (n:{label} {{id: $id}}) SET n += $props",
+            id=node_id,
+            props=props,
+        )
+
+    for source, target, attr in nx_graph.edges(data=True):
+        relations = attr.get("relations", {"RELATED"})
+        weight = attr.get("weight", 1)
+        relation_types = sorted(relations)
+        ordered_source, ordered_target = sorted([source, target])
+        for rel in relation_types:
+            rel_type = rel.upper()
+            tx.run(
+                f"MATCH (a {{id: $source_id}}), (b {{id: $target_id}}) "
+                f"MERGE (a)-[r:{rel_type}]->(b) "
+                "SET r.weight = $weight, r.relation_types = $relation_types",
+                source_id=ordered_source,
+                target_id=ordered_target,
+                weight=weight,
+                relation_types=relation_types,
+            )
+
+    tx.commit()
+    print("Neo4j export completed.")
+
+
 def main() -> None:
     args = parse_args()
     tables = load_tables(args.base_path)
@@ -207,6 +280,11 @@ def main() -> None:
 
     if args.export_dir is not None:
         export_tables(args.export_dir, rankings)
+
+    if args.neo4j_uri is not None:
+        if not args.neo4j_user or not args.neo4j_password:
+            raise ValueError("--neo4j-user and --neo4j-password are required when --neo4j-uri is set")
+        export_to_neo4j(graph, args.neo4j_uri, args.neo4j_user, args.neo4j_password, args.neo4j_wipe)
 
 
 if __name__ == "__main__":
