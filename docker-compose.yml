@@ -23,43 +23,56 @@ services:
   spark-master:
     image: apache/spark:latest
     container_name: spark-master
-    command: ["spark-class", "org.apache.spark.deploy.master.Master"]
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
     environment:
-      - SPARK_MODE=master
-      - SPARK_NO_DAEMONIZE=yes
+      SPARK_MODE: master
+      SPARK_NO_DAEMONIZE: "true"
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: 7077
     ports:
       - "7077:7077"
       - "8080:8080"
     networks:
       - f1_network
+    restart: unless-stopped
 
   spark-worker-1:
     image: apache/spark:latest
     container_name: spark-worker-1
-    command: ["spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    command:
+      ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
     environment:
-      - SPARK_MODE=worker
-      - SPARK_NO_DAEMONIZE=yes
+      SPARK_MODE: worker
+      SPARK_NO_DAEMONIZE: "true"
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: 4G
+      SPARK_PUBLIC_DNS: spark-worker-1
     depends_on:
       - spark-master
     ports:
       - "8081:8081"
     networks:
       - f1_network
+    restart: unless-stopped
 
   spark-worker-2:
     image: apache/spark:latest
     container_name: spark-worker-2
-    command: ["spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    command:
+      ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
     environment:
-      - SPARK_MODE=worker
-      - SPARK_NO_DAEMONIZE=yes
+      SPARK_MODE: worker
+      SPARK_NO_DAEMONIZE: "true"
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: 4G
+      SPARK_PUBLIC_DNS: spark-worker-2
     depends_on:
       - spark-master
     ports:
       - "8082:8081"
     networks:
       - f1_network
+    restart: unless-stopped
 
   etl:
     build:
