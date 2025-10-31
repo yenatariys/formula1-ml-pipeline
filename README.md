@@ -23,6 +23,73 @@ This repository orchestrates an end-to-end Formula 1 analytics workflow covering
 3. Choose between the classic (`docs/runbooks/03-classic-ml-workflow.md`) or big data (`docs/runbooks/04-bigdata-ml-workflow.md`) pipelines—or execute both.
 4. Launch dashboards using `docs/runbooks/05-dashboards.md` to explore results.
 
+## Architecture diagram
+
+```mermaid
+flowchart TB
+    subgraph Input ["📥 Data Sources"]
+        Raw[("Raw CSV Files<br/>data/*.csv")]
+    end
+
+    subgraph ETL ["🔄 ETL & Processing"]
+        ETLService["ETL Service<br/>etl/etl_pipeline.py"]
+        Postgres[("PostgreSQL<br/>f1_results_transformed")]
+        Graph["Graph Analytics<br/>analytics/graph_analysis.py"]
+    end
+
+    subgraph ML ["🤖 Machine Learning"]
+        SparkJob["Spark Feature Engineering<br/>train_driver_win_mllib.py"]
+        FeatureStore[/"Feature Store<br/>artifacts/feature_store/"\]
+        TFJob["TensorFlow Trainer<br/>train_tensorflow_bigdata.py"]
+    end
+
+    subgraph Outputs ["💾 Artifacts"]
+        Models[/"ML Models<br/>artifacts/models/"\]
+        Eval[/"Evaluation Metrics<br/>artifacts/evaluations/"\]
+        CSVOut[/"Graph Rankings<br/>artifacts/graph_outputs/"\]
+    end
+
+    subgraph Viz ["📊 Visualization"]
+        DashClassic["Classic Dashboard<br/>localhost:8501"]
+        DashBigData["Big Data Dashboard<br/>localhost:8502"]
+        Neo4j[("Neo4j Graph DB<br/>(optional)")]
+    end
+
+    Raw --> ETLService
+    ETLService --> Postgres
+    ETLService --> Graph
+    
+    Graph -.->|optional| Neo4j
+    Graph --> CSVOut
+    
+    Postgres --> SparkJob
+    SparkJob --> FeatureStore
+    SparkJob --> Models
+    SparkJob --> Eval
+    
+    FeatureStore --> TFJob
+    TFJob --> Models
+    TFJob --> Eval
+    
+    Postgres --> DashClassic
+    FeatureStore --> DashBigData
+    Models --> DashBigData
+    Eval --> DashClassic
+    Eval --> DashBigData
+
+    classDef inputStyle fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    classDef etlStyle fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef mlStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef outputStyle fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef vizStyle fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    
+    class Raw inputStyle
+    class ETLService,Postgres,Graph etlStyle
+    class SparkJob,FeatureStore,TFJob mlStyle
+    class Models,Eval,CSVOut outputStyle
+    class DashClassic,DashBigData,Neo4j vizStyle
+```
+
 ## Docker services overview
 
 | Service | Description |

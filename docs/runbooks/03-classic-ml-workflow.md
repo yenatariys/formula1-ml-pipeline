@@ -8,11 +8,11 @@ Train the fast scikit-learn and XGBoost models that write predictions back to Po
 
 ## 2. Run the comparison trainer (recommended)
 ```powershell
-docker-compose run --rm \
-  -e DB_HOST=f1_postgres \
-  -e DB_NAME=f1_data \
-  -e DB_USER=admin \
-  -e DB_PASSWORD=admin123 \
+docker-compose run --rm `
+  -e DB_HOST=f1_postgres `
+  -e DB_NAME=f1_data `
+  -e DB_USER=admin `
+  -e DB_PASSWORD=admin123 `
   ml_train python pipelines/classic/train_comparison.py
 ```
 Outputs:

@@ -48,7 +48,7 @@ services:
       SPARK_MODE: worker
       SPARK_NO_DAEMONIZE: "true"
       SPARK_WORKER_CORES: "2"
-      SPARK_WORKER_MEMORY: 4G
+      SPARK_WORKER_MEMORY: 3G
       SPARK_PUBLIC_DNS: spark-worker-1
       SPARK_WORKER_PORT: 8081
     depends_on:
@@ -70,7 +70,7 @@ services:
       SPARK_MODE: worker
       SPARK_NO_DAEMONIZE: "true"
       SPARK_WORKER_CORES: "2"
-      SPARK_WORKER_MEMORY: 4G
+      SPARK_WORKER_MEMORY: 3G
       SPARK_PUBLIC_DNS: spark-worker-2
       SPARK_WORKER_PORT: 8082
     depends_on:

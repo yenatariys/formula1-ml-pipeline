@@ -8,8 +8,7 @@ Execute the Spark feature engineering job and the TensorFlow trainer that consum
 
 ## 2. Submit the Spark job
 ```powershell
-docker-compose exec spark-master \
-  spark-submit /app/pipelines/bigdata/spark/train_driver_win_mllib.py
+docker-compose exec spark-master /opt/spark/bin/spark-submit /app/pipelines/bigdata/spark/train_driver_win_mllib.py
 ```
 Key outputs:
 - Feature store shards under `artifacts/feature_store/` (Parquet + CSV).

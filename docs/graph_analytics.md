@@ -29,6 +29,28 @@ The script prints the top drivers, constructors, and circuits ranked by weighted
 degree and betweenness centrality. Exported CSVs contain the same tables for
 further analysis.
 
+### Optional: automate via ETL
+The ETL container can kick off the graph job automatically once data loads
+complete. Set the following environment variables on the `etl` service (for
+example, inside `docker-compose.yml` or your deployment platform):
+
+```yaml
+environment:
+  RUN_GRAPH_ANALYTICS: "true"
+  GRAPH_BASE_PATH: data  # optional override
+  GRAPH_EXPORT_DIR: artifacts/graph_outputs  # optional
+  GRAPH_TOP_K: "10"
+  GRAPH_MIN_YEAR: "2015"  # optional year filter
+  GRAPH_MAX_YEAR: "2020"  # optional year filter
+  GRAPH_NEO4J_URI: bolt://neo4j:7687  # optional Neo4j export
+  GRAPH_NEO4J_USER: neo4j
+  GRAPH_NEO4J_PASSWORD: s3cr3t
+  GRAPH_NEO4J_WIPE: "true"
+```
+
+Leave the Neo4j variables unset if you only need local CSV outputs. Failures in
+this optional step are logged but will not stop the ETL pipeline.
+
 ### Optional: push results to Neo4j
 Provide your Neo4j connection details to load the same graph into a live
 database (requires the `py2neo` dependency already listed in `requirements.txt`):

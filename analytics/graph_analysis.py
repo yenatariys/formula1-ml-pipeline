@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, Tuple, Any, Optional
 
 import networkx as nx
 import pandas as pd
@@ -253,38 +253,86 @@ def export_to_neo4j(nx_graph: nx.Graph, uri: str, user: str, password: str, wipe
     print("Neo4j export completed.")
 
 
-def main() -> None:
-    args = parse_args()
-    tables = load_tables(args.base_path)
-    filtered_results = filter_results(tables, args.min_year, args.max_year)
+def run_graph_analysis(
+    base_path: Path | str = Path("data"),
+    min_year: Optional[int] = None,
+    max_year: Optional[int] = None,
+    top_k: int = 10,
+    export_dir: Optional[Path | str] = None,
+    neo4j_config: Optional[Dict[str, Any]] = None,
+    echo: bool = True,
+) -> Dict[str, pd.DataFrame]:
+    base_path = Path(base_path)
+    export_path = Path(export_dir) if export_dir is not None else None
+
+    tables = load_tables(base_path)
+    filtered_results = filter_results(tables, min_year, max_year)
 
     if filtered_results.empty:
-        year_filter = f" between {args.min_year} and {args.max_year}" if args.min_year or args.max_year else ""
+        year_filter = ""
+        if min_year or max_year:
+            year_filter = f" between {min_year} and {max_year}"
         raise ValueError(f"No race results found{year_filter}. Adjust filters and retry.")
 
     graph = build_graph(tables, filtered_results)
-    print(f"Graph built with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
+    if echo:
+        print(f"Graph built with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
 
     rankings = {
-        "drivers": _rank_nodes(graph, "driver", args.top_k),
-        "constructors": _rank_nodes(graph, "constructor", args.top_k),
-        "circuits": _rank_nodes(graph, "circuit", args.top_k),
+        "drivers": _rank_nodes(graph, "driver", top_k),
+        "constructors": _rank_nodes(graph, "constructor", top_k),
+        "circuits": _rank_nodes(graph, "circuit", top_k),
     }
 
-    for label, df in rankings.items():
-        if df.empty:
-            print(f"No nodes of type {label} found for the current filter")
-            continue
-        print("\n=== Top", args.top_k, label, "===")
-        print(df.to_string(index=False, float_format=lambda x: f"{x:.3f}"))
+    if echo:
+        for label, df in rankings.items():
+            if df.empty:
+                print(f"No nodes of type {label} found for the current filter")
+                continue
+            print("\n=== Top", top_k, label, "===")
+            print(df.to_string(index=False, float_format=lambda x: f"{x:.3f}"))
 
-    if args.export_dir is not None:
-        export_tables(args.export_dir, rankings)
+    if export_path is not None:
+        export_tables(export_path, rankings)
 
+    if neo4j_config is not None:
+        required_keys = {"uri", "user", "password", "wipe"}
+        missing = required_keys - set(neo4j_config)
+        if missing:
+            raise ValueError(f"Neo4j config missing keys: {', '.join(sorted(missing))}")
+        export_to_neo4j(
+            graph,
+            uri=neo4j_config["uri"],
+            user=neo4j_config["user"],
+            password=neo4j_config["password"],
+            wipe=bool(neo4j_config.get("wipe", False)),
+        )
+
+    return rankings
+
+
+def main() -> None:
+    args = parse_args()
+    neo4j_config = None
     if args.neo4j_uri is not None:
         if not args.neo4j_user or not args.neo4j_password:
             raise ValueError("--neo4j-user and --neo4j-password are required when --neo4j-uri is set")
-        export_to_neo4j(graph, args.neo4j_uri, args.neo4j_user, args.neo4j_password, args.neo4j_wipe)
+        neo4j_config = {
+            "uri": args.neo4j_uri,
+            "user": args.neo4j_user,
+            "password": args.neo4j_password,
+            "wipe": args.neo4j_wipe,
+        }
+
+    run_graph_analysis(
+        base_path=args.base_path,
+        min_year=args.min_year,
+        max_year=args.max_year,
+        top_k=args.top_k,
+        export_dir=args.export_dir,
+        neo4j_config=neo4j_config,
+        echo=True,
+    )
 
 
 if __name__ == "__main__":
