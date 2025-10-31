@@ -1,0 +1,5 @@
+TODO:
+[x] Design graph analytics approach (review data sources, define entities/edges).
+[x] Implement graph analysis script (`analytics/graph_analysis.py`).
+[x] Document usage instructions for the new analytics step.
+[ ] Add optional Neo4j export path to the graph analytics workflow and docs.
