@@ -56,15 +56,6 @@ Interpretation: Lewis Hamilton (orange) sits at the centre connected to 38 circu
 
 
 
-## Suggested Neo4j queries and interpretations
-
-1. **Driver → Circuit neighbourhood**
-   ```cypher
-   MATCH (d:Driver {name: "Lewis Hamilton"})-[:DRIVER_CIRCUIT]-(c:Circuit)
-   RETURN d, c
-   ```
-   Lists every circuit where the driver has recorded a race result. Use Graph view for visuals or aggregate into a table with `RETURN d.name AS driver, collect(DISTINCT c.name) AS circuits` when comparing drivers.
-
 2. **Shared circuits between two drivers**
    ```cypher
    MATCH (d1:Driver {name: "Lewis Hamilton"})-[:DRIVER_CIRCUIT]-(c:Circuit)-[:DRIVER_CIRCUIT]-(d2:Driver)
