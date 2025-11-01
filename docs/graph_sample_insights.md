@@ -18,7 +18,7 @@ Omit the `--neo4j-*` flags if you only want the console output and CSV exports u
 
 ### Sample driver–circuit slice (top 50 relationships)
 
-Run the query below inside the Neo4j Browser to get a quick sanity check that nodes and relationships loaded correctly. The screenshot (`docs/figures/Screenshot 2025-11-01 010037.png`) captures the output in Graph view.
+Run the query below inside the Neo4j Browser to get a quick sanity check that nodes and relationships loaded correctly. The screenshot (`docs/figures/Driver-Circuit-Slice.png`) captures the output in Graph view.
 
 ```cypher
 MATCH (n)-[r]->(m)
@@ -54,7 +54,7 @@ Interpretation: Lewis Hamilton (orange) sits at the centre connected to 38 circu
 - **Recurring venues**: Edges with higher weight (visible on hover in the Browser) highlight venues such as Silverstone or Monza where he has started repeatedly.
 - **Single-driver focus**: Only one driver node appears, which makes it ideal for isolating a specific career but means cross-driver comparisons require separate queries or aggregations.
 
-
+<!-- Masih dikerjakan -->
 
 2. **Shared circuits between two drivers**
    ```cypher
