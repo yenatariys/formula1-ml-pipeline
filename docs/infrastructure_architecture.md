@@ -6,113 +6,99 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 ## Infrastructure Diagram
 
 ```mermaid
-graph TB
-    subgraph "External Users"
-        USER[User/Data Scientist]
-        ANALYST[Business Analyst]
+flowchart LR
+  %% External
+  subgraph ext[External Users]
+    USER["User / Data Scientist"]
+    ANALYST["Business Analyst"]
+  end
+
+  %% Storage & Sources
+  subgraph storage[Storage & Sources]
+    CSV[("CSV Files\ndata/*.csv")]
+    POSTGRES[("PostgreSQL\nf1_postgres\n5432")]
+    ARTIFACTS[("Artifact Store\nartifacts/*")]
+    NEO4J[("Neo4j\nf1_neo4j\n7474 / 7687")]
+  end
+
+  %% Processing & Compute
+  subgraph processing[Processing]
+    ETL["etl_service\nETL / Spark"]
+    subgraph spark["Spark Cluster"]
+      SM["spark-master"]
+      SW1["worker-1"]
+      SW2["worker-2"]
     end
-    
-    subgraph "Data Sources"
-        CSV[("CSV Files<br/>data/*.csv")]
-    end
-    
-    subgraph "Docker Network: f1_network"
-        
-        subgraph "Data Storage Layer"
-            POSTGRES[("PostgreSQL 16<br/>f1_postgres<br/>Port: 5432")]
-            NEO4J[("Neo4j 5.22<br/>f1_neo4j<br/>Ports: 7474, 7687")]
-            VOLUME_NEO4J[("Neo4j Volumes<br/>data, logs, import")]
-            VOLUME_DATA[("Shared Volume<br/>./:/app")]
-        end
-        
-        subgraph "ETL & Processing Layer"
-            ETL["ETL Service<br/>etl_service<br/>Port: 8888<br/>(Python + Spark)"]
-            SPARK_MASTER["Spark Master<br/>spark-master<br/>Ports: 7077, 8080"]
-            SPARK_W1["Spark Worker 1<br/>spark-worker-1<br/>Port: 8081<br/>2 cores, 3GB RAM"]
-            SPARK_W2["Spark Worker 2<br/>spark-worker-2<br/>Port: 8082<br/>2 cores, 3GB RAM"]
-        end
-        
-        subgraph "ML Training Layer"
-            ML_TRAIN["ML Training<br/>ml_train<br/>(Scikit-learn)"]
-            SPARK_ML["Spark MLlib<br/>Feature Engineering<br/>+ RF Model"]
-            TF_TRAIN["TensorFlow Training<br/>(Neural Network)"]
-        end
-        
-        subgraph "Analytics Layer"
-            GRAPH_ANALYTICS["Graph Analytics<br/>NetworkX + Neo4j"]
-        end
-        
-        subgraph "Artifact Storage"
-            ARTIFACTS[("Artifact Store<br/>artifacts/<br/>- models/<br/>- evaluations/<br/>- feature_store/<br/>- predictions/")]
-        end
-        
-        subgraph "Visualization Layer"
-            DASH_CLASSIC["Classic Dashboard<br/>dashboard_classic<br/>Port: 8501<br/>(Streamlit)"]
-            DASH_BIGDATA["Big Data Dashboard<br/>dashboard_bigdata<br/>Port: 8502<br/>(Streamlit)"]
-            PGADMIN["pgAdmin<br/>f1_pgadmin<br/>Port: 5050"]
-        end
-        
-    end
-    
-    %% Data Flow - Ingestion
-    CSV -->|Extract| ETL
-    ETL -->|Transform with Spark| SPARK_MASTER
-    SPARK_MASTER -->|Distribute Work| SPARK_W1
-    SPARK_MASTER -->|Distribute Work| SPARK_W2
-    ETL -->|Load| POSTGRES
-    ETL -->|Graph Export| GRAPH_ANALYTICS
-    GRAPH_ANALYTICS -->|Build Graph| NEO4J
-    
-    %% Data Flow - ML Training
-    POSTGRES -->|Query Training Data| ML_TRAIN
-    CSV -->|Read Features| SPARK_MASTER
-    SPARK_MASTER -->|Feature Engineering| SPARK_ML
-    SPARK_ML -->|Save Parquet/CSV| ARTIFACTS
-    ARTIFACTS -->|Read Features| TF_TRAIN
-    
-    %% Data Flow - Model Artifacts
-    ML_TRAIN -->|Save Models| ARTIFACTS
-    SPARK_ML -->|Save MLlib Model| ARTIFACTS
-    TF_TRAIN -->|Save Keras Model| ARTIFACTS
-    
-    %% Data Flow - Visualization
-    POSTGRES -->|Query Results| DASH_CLASSIC
-    ARTIFACTS -->|Read Metrics| DASH_CLASSIC
-    ARTIFACTS -->|Read Metrics| DASH_BIGDATA
-    POSTGRES -->|Admin Queries| PGADMIN
-    NEO4J -->|Graph Queries| ANALYST
-    
-    %% External Access
-    USER -->|View Dashboards| DASH_CLASSIC
-    USER -->|View Dashboards| DASH_BIGDATA
-    USER -->|Submit Spark Jobs| SPARK_MASTER
-    USER -->|Run Training| ML_TRAIN
-    USER -->|Run Training| TF_TRAIN
-    ANALYST -->|DB Admin| PGADMIN
-    ANALYST -->|Graph Browser| NEO4J
-    
-    %% Volume Mounts
-    VOLUME_DATA -.->|Mount| ETL
-    VOLUME_DATA -.->|Mount| SPARK_MASTER
-    VOLUME_DATA -.->|Mount| SPARK_W1
-    VOLUME_DATA -.->|Mount| SPARK_W2
-    VOLUME_DATA -.->|Mount| DASH_CLASSIC
-    VOLUME_DATA -.->|Mount| DASH_BIGDATA
-    VOLUME_NEO4J -.->|Mount| NEO4J
-    
-    %% Styling
-    classDef storage fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
-    classDef processing fill:#50C878,stroke:#2E7D4E,stroke-width:2px,color:#fff
-    classDef ml fill:#F39C12,stroke:#C87F0A,stroke-width:2px,color:#fff
-    classDef viz fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
-    classDef external fill:#95A5A6,stroke:#7F8C8D,stroke-width:2px,color:#fff
-    
-    class POSTGRES,NEO4J,VOLUME_NEO4J,VOLUME_DATA,CSV,ARTIFACTS storage
-    class ETL,SPARK_MASTER,SPARK_W1,SPARK_W2,GRAPH_ANALYTICS processing
-    class ML_TRAIN,SPARK_ML,TF_TRAIN ml
-    class DASH_CLASSIC,DASH_BIGDATA,PGADMIN viz
-    class USER,ANALYST external
+    GRAPH["Graph Analytics"]
+  end
+
+  %% Machine Learning
+  subgraph ml[Machine Learning]
+    CLASSIC["ml_train\nClassic ML"]
+    MLLIB["Spark MLlib\nRandom Forest"]
+    TF["TensorFlow Trainer"]
+  end
+
+  %% Dashboards & Admin
+  subgraph viz[Dashboards & Admin]
+    DASH1["dashboard_classic\n8501"]
+    DASH2["dashboard_bigdata\n8502"]
+    PGADMIN["pgAdmin\n5050"]
+  end
+
+  %% Flows
+  CSV --> ETL
+  ETL --> POSTGRES
+  ETL --> GRAPH
+  GRAPH --> NEO4J
+
+  ETL --> SM
+  SM --> SW1
+  SM --> SW2
+  SM --> MLLIB
+
+  POSTGRES --> CLASSIC
+  MLLIB --> ARTIFACTS
+  CLASSIC --> ARTIFACTS
+  TF --> ARTIFACTS
+  ARTIFACTS --> TF
+
+  POSTGRES --> DASH1
+  ARTIFACTS --> DASH1
+  ARTIFACTS --> DASH2
+  POSTGRES --> PGADMIN
+  NEO4J --> ANALYST
+
+  USER --> DASH1
+  USER --> DASH2
+  USER -.-> SM
+  USER -.-> CLASSIC
+  USER -.-> TF
+
+  %% Styling
+  classDef storage fill:#4A90E2,stroke:#2E5C8A,color:white
+  classDef processing fill:#50C878,stroke:#2E7D4E,color:white
+  classDef ml fill:#F39C12,stroke:#C87F0A,color:white
+  classDef viz fill:#E74C3C,stroke:#C0392B,color:white
+  classDef external fill:#95A5A6,stroke:#7F8C8D,color:white
+
+  class CSV,POSTGRES,ARTIFACTS,NEO4J storage
+  class ETL,SM,SW1,SW2,GRAPH processing
+  class CLASSIC,MLLIB,TF ml
+  class DASH1,DASH2,PGADMIN viz
+  class USER,ANALYST external
 ```
+
+  ### Exporting the Diagram as an Image
+
+  If you need a PNG/SVG version of the diagram, install the Mermaid CLI and render the markdown file directly:
+
+  ```powershell
+  npm install -g @mermaid-js/mermaid-cli
+  mmdc -i docs/infrastructure_architecture.md -o docs/figures/infrastructure.png
+  ```
+
+  > The command renders the first Mermaid block in the file. Adjust the output path or format (`.svg`) as needed.
 
 ## Component Details
 
