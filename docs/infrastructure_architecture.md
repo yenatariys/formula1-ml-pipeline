@@ -6,72 +6,74 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 ## Infrastructure Diagram
 
 ```mermaid
-flowchart LR
-  %% External
-  subgraph ext[External Users]
-    USER["User / Data Scientist"]
-    ANALYST["Business Analyst"]
+flowchart TB
+  %% Layer 0 - External
+  subgraph L0[External]
+    USER[User / Data Scientist]
+    ANALYST[Business Analyst]
   end
 
-  %% Storage & Sources
-  subgraph storage[Storage & Sources]
-    CSV[("CSV Files\ndata/*.csv")]
-    POSTGRES[("PostgreSQL\nf1_postgres\n5432")]
-    ARTIFACTS[("Artifact Store\nartifacts/*")]
-    NEO4J[("Neo4j\nf1_neo4j\n7474 / 7687")]
+  %% Layer 1 - Data & Storage
+  subgraph L1[Data & Storage]
+    CSV[(CSV Files\ndata/*.csv)]
+    POSTGRES[(PostgreSQL\nf1_postgres\n5432)]
+    ARTIFACTS[(Artifacts\nmodels / metrics / features)]
+    NEO4J[(Neo4j\nf1_neo4j\n7474 / 7687)]
   end
 
-  %% Processing & Compute
-  subgraph processing[Processing]
-    ETL["etl_service\nETL / Spark"]
-    subgraph spark["Spark Cluster"]
-      SM["spark-master"]
-      SW1["worker-1"]
-      SW2["worker-2"]
+  %% Layer 2 - Processing
+  subgraph L2[Processing]
+    ETL[etl_service\nETL + Spark submit]
+    subgraph SPARK[Standalone Spark Cluster]
+      MASTER[spark-master\n7077 / 8080]
+      WORKER1[spark-worker-1]
+      WORKER2[spark-worker-2]
     end
-    GRAPH["Graph Analytics"]
+    GRAPH[Graph analytics job]
   end
 
-  %% Machine Learning
-  subgraph ml[Machine Learning]
-    CLASSIC["ml_train\nClassic ML"]
-    MLLIB["Spark MLlib\nRandom Forest"]
-    TF["TensorFlow Trainer"]
+  %% Layer 3 - Machine Learning
+  subgraph L3[Machine Learning]
+    CLASSIC[ml_train\nScikit-learn]
+    MLLIB[Spark MLlib\nRandom Forest]
+    TF[TensorFlow trainer]
   end
 
-  %% Dashboards & Admin
-  subgraph viz[Dashboards & Admin]
-    DASH1["dashboard_classic\n8501"]
-    DASH2["dashboard_bigdata\n8502"]
-    PGADMIN["pgAdmin\n5050"]
+  %% Layer 4 - Dashboards & Admin
+  subgraph L4[Dashboards & Admin]
+    DASH1[dashboard_classic\nStreamlit 8501]
+    DASH2[dashboard_bigdata\nStreamlit 8502]
+    PGADMIN[pgAdmin\n5050]
   end
 
-  %% Flows
+  %% Data ingestion paths
   CSV --> ETL
   ETL --> POSTGRES
+  ETL --> MASTER
   ETL --> GRAPH
   GRAPH --> NEO4J
+  MASTER --> WORKER1
+  MASTER --> WORKER2
 
-  ETL --> SM
-  SM --> SW1
-  SM --> SW2
-  SM --> MLLIB
-
+  %% Feature engineering & ML
+  MASTER --> MLLIB
   POSTGRES --> CLASSIC
   MLLIB --> ARTIFACTS
   CLASSIC --> ARTIFACTS
-  TF --> ARTIFACTS
   ARTIFACTS --> TF
+  TF --> ARTIFACTS
 
+  %% Visualization & admin flows
   POSTGRES --> DASH1
   ARTIFACTS --> DASH1
   ARTIFACTS --> DASH2
   POSTGRES --> PGADMIN
   NEO4J --> ANALYST
 
-  USER --> DASH1
-  USER --> DASH2
-  USER -.-> SM
+  %% User touchpoints (dashed)
+  USER -.-> DASH1
+  USER -.-> DASH2
+  USER -.-> MASTER
   USER -.-> CLASSIC
   USER -.-> TF
 
@@ -83,7 +85,7 @@ flowchart LR
   classDef external fill:#95A5A6,stroke:#7F8C8D,color:white
 
   class CSV,POSTGRES,ARTIFACTS,NEO4J storage
-  class ETL,SM,SW1,SW2,GRAPH processing
+  class ETL,MASTER,WORKER1,WORKER2,GRAPH processing
   class CLASSIC,MLLIB,TF ml
   class DASH1,DASH2,PGADMIN viz
   class USER,ANALYST external
