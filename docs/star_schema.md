@@ -12,38 +12,38 @@ Those sources already provide enough information to build a compact star schema 
 ## Star Schema Diagram
 
 ```mermaid
+erDiagram
+FACT_RACE_RESULTS {
+    bigint result_id PK
+    int race_id FK
+    int driver_id FK
+    int constructor_id
+    int grid_position
+    int finish_position
+    varchar position_text
+    decimal points
+}
 
-    FACT_RACE_RESULTS {
-        bigint result_id PK
-        int race_id FK
-        int driver_id FK
-        int constructor_id
-        int grid_position
-        int finish_position
-        varchar position_text
-        decimal points
-    }
+DIM_RACE {
+    int race_id PK
+    int season_year
+    int round_number
+    varchar race_name
+}
 
-    DIM_RACE {
-        int race_id PK
-        int season_year
-        int round_number
-        varchar race_name
-    }
+DIM_DRIVER {
+    int driver_id PK
+    varchar driver_ref
+    int car_number
+    varchar code
+    varchar forename
+    varchar surname
+    date date_of_birth
+    varchar nationality
+}
 
-    DIM_DRIVER {
-        int driver_id PK
-        varchar driver_ref
-        int car_number
-        varchar code
-        varchar forename
-        varchar surname
-        date date_of_birth
-        varchar nationality
-    }
-
-    FACT_RACE_RESULTS }o--|| DIM_RACE : race_id
-    FACT_RACE_RESULTS }o--|| DIM_DRIVER : driver_id
+FACT_RACE_RESULTS }o--|| DIM_RACE : race_id
+FACT_RACE_RESULTS }o--|| DIM_DRIVER : driver_id
 ```
 
 ### Fact Table
