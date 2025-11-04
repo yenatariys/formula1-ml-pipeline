@@ -6,20 +6,19 @@ This directory contains comprehensive architecture documentation for the Formula
 ## Documentation Index
 
 ### 📊 [Star Schema Design](./star_schema.md)
-**Purpose**: Dimensional data model for analytics and ML feature engineering
+**Purpose**: Minimal dimensional model built from the CSVs currently used by the ETL (`races.csv`, `results.csv`, `drivers.csv`)
 
 **Contents**:
-- Star schema ERD with fact and dimension tables
-- Table definitions and relationships
-- SQL query patterns for ML features
-- Migration path from current flat schema
-- Performance optimization strategies
+- Compact star schema ERD (1 fact table, 2 dimensions)
+- Column breakdown for each table
+- Example analytical queries
+- Guidance for extending the model as more sources are added
 
 **Key Highlights**:
-- 7 fact tables (race results, qualifying, lap times, pit stops, sprint results, standings)
-- 7 dimension tables (drivers, constructors, circuits, races, seasons, status, date)
-- Optimized for Spark feature engineering and TensorFlow training
-- Supports temporal analysis and graph analytics integration
+- Mirrors the joins in `etl/extract_data.py`
+- Easy to implement in PostgreSQL or a warehouse
+- Provides a clean base for dashboards and ML feature engineering
+- Designed to expand when additional CSVs enter the pipeline
 
 **Use Cases**:
 - Database schema design and migration
@@ -59,20 +58,9 @@ This directory contains comprehensive architecture documentation for the Formula
 ### Star Schema Tables
 | Type | Table Name | Description |
 |------|-----------|-------------|
-| **Fact** | FACT_RACE_RESULTS | Core race outcomes and performance metrics |
-| **Fact** | FACT_QUALIFYING | Qualifying session times (Q1, Q2, Q3) |
-| **Fact** | FACT_LAP_TIMES | Lap-by-lap performance data |
-| **Fact** | FACT_PIT_STOPS | Pit stop events and durations |
-| **Fact** | FACT_SPRINT_RESULTS | Sprint race outcomes |
-| **Fact** | FACT_CONSTRUCTOR_STANDINGS | Team championship standings |
-| **Fact** | FACT_DRIVER_STANDINGS | Driver championship standings |
-| **Dim** | DIM_DRIVERS | Driver master data |
-| **Dim** | DIM_CONSTRUCTORS | Constructor/team information |
-| **Dim** | DIM_CIRCUITS | Circuit details with coordinates |
-| **Dim** | DIM_RACES | Race event metadata |
-| **Dim** | DIM_SEASONS | Season/year dimension |
-| **Dim** | DIM_STATUS | Race finish status codes |
-| **Dim** | DIM_DATE | Date dimension for time-based analysis |
+| **Fact** | FACT_RACE_RESULTS | One row per driver per race with position, grid slot, and points |
+| **Dim** | DIM_RACE | Race metadata (season year, round, race name) |
+| **Dim** | DIM_DRIVER | Driver attributes (name, nationality, code, number) |
 
 ### Infrastructure Services
 | Service | Container | Ports | Purpose |
@@ -91,11 +79,7 @@ This directory contains comprehensive architecture documentation for the Formula
 ## Architecture Diagrams Preview
 
 ### Star Schema Entity Relationship Diagram
-The star schema consists of:
-- **Central Fact Tables**: Race results, qualifying, lap times, pit stops, sprint results, standings
-- **Surrounding Dimensions**: Drivers, constructors, circuits, races, seasons, status, date
-- **Snowflake Elements**: Races dimension connects to circuits and seasons
-- **Optimized Joins**: Minimized join complexity for analytical queries
+The star schema consists of a **single fact table** (`FACT_RACE_RESULTS`) joined to two dimensions (`DIM_RACE`, `DIM_DRIVER`). It captures exactly the data produced by the current extract step and keeps joins easy to reason about.
 
 *See [star_schema.md](./star_schema.md) for the full Mermaid ERD*
 
@@ -130,9 +114,9 @@ Dashboards (visualization)
 ### Use Case: Driver Win Prediction ML Pipeline
 
 **Star Schema Perspective**:
-1. Query `FACT_RACE_RESULTS` joined with `DIM_DRIVERS`, `DIM_RACES`
-2. Aggregate rolling statistics (win rate, avg points, races completed)
-3. Create `FACT_DRIVER_PERFORMANCE` materialized view
+1. Query `FACT_RACE_RESULTS` joined with `DIM_DRIVER` and `DIM_RACE`
+2. Aggregate metrics such as total points or average finishing position
+3. Publish the results as views or materialized tables for downstream ML jobs
 
 **Infrastructure Perspective**:
 1. **ETL Service** loads CSV → PostgreSQL star schema
