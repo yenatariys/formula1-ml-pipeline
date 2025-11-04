@@ -31,7 +31,7 @@ def _feature_store_glob() -> str:
             "train_driver_win_mllib.py first or set F1_FEATURE_STORE_PATH to a directory "
             f"containing CSV shards (missing: {csv_dir})."
         )
-    return os.path.join(csv_dir, "*")
+    return os.path.join(csv_dir, "*.csv")
 
 
 def _make_base_dataset(batch_size: int) -> tf.data.Dataset:
@@ -39,8 +39,7 @@ def _make_base_dataset(batch_size: int) -> tf.data.Dataset:
     dataset = tf.data.experimental.make_csv_dataset(
         file_pattern=file_pattern,
         batch_size=batch_size,
-        column_names=FEATURE_COLUMNS + [LABEL_COLUMN],
-        column_defaults=COLUMN_DEFAULTS,
+        select_columns=FEATURE_COLUMNS + [LABEL_COLUMN],
         label_name=LABEL_COLUMN,
         num_epochs=1,
         shuffle=True,
@@ -83,6 +82,9 @@ def _split_datasets(dataset: tf.data.Dataset) -> Tuple[tf.data.Dataset, tf.data.
 
 
 def _build_model() -> tf.keras.Model:
+    # Initial bias for imbalanced data: log(pos/neg) = log(1099/12379) ≈ -2.43
+    output_bias = tf.keras.initializers.Constant(value=-2.43)
+    
     model = tf.keras.Sequential(
         [
             tf.keras.layers.Input(shape=(len(FEATURE_COLUMNS),)),
@@ -91,7 +93,7 @@ def _build_model() -> tf.keras.Model:
             tf.keras.layers.Dropout(0.3),
             tf.keras.layers.Dense(64, activation="relu"),
             tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(1, activation="sigmoid"),
+            tf.keras.layers.Dense(1, activation="sigmoid", bias_initializer=output_bias),
         ]
     )
     model.compile(
@@ -116,7 +118,17 @@ def _train_and_evaluate(
     with strategy.scope():
         model = _build_model()
 
-    history = model.fit(train_ds, validation_data=val_ds, epochs=epochs)
+    # Class weights to handle imbalance (91.8% losses, 8.2% wins)
+    # Weight for class 0 (loss): 1.0
+    # Weight for class 1 (win): 91.8 / 8.2 ≈ 11.2
+    class_weight = {0: 1.0, 1: 11.2}
+    
+    history = model.fit(
+        train_ds, 
+        validation_data=val_ds, 
+        epochs=epochs,
+        class_weight=class_weight
+    )
     test_metrics = model.evaluate(test_ds, return_dict=True)
     return model, history.history, test_metrics.items()
 
@@ -125,20 +137,22 @@ def main() -> None:
     batch_size = int(os.getenv("F1_TF_BATCH_SIZE", "512"))
     epochs = int(os.getenv("F1_TF_EPOCHS", "15"))
 
+    print(f"Loading feature store with batch_size={batch_size}...")
     base_dataset = _make_base_dataset(batch_size=batch_size)
+    
+    print("Splitting datasets...")
     train_ds, val_ds, test_ds = _split_datasets(base_dataset)
 
-    for name, dataset in (("train", train_ds), ("val", val_ds), ("test", test_ds)):
-        cardinality = tf.data.experimental.cardinality(dataset)
-        if cardinality == tf.data.experimental.UNKNOWN_CARDINALITY:
-            raise RuntimeError(
-                f"Unable to determine cardinality for {name} dataset. Check feature shards."
-            )
-        if cardinality.numpy() == 0:
-            raise RuntimeError(
-                f"{name} dataset is empty. Ensure Spark feature export produced enough batches."
-            )
-        print(f"{name.capitalize()} batches: {cardinality.numpy()}")
+    # Cardinality might be unknown due to caching and filtering, which is fine
+    # Just verify datasets are not empty by checking if we can iterate
+    print("Verifying datasets are not empty...")
+    try:
+        _ = next(iter(train_ds))
+        _ = next(iter(val_ds))
+        _ = next(iter(test_ds))
+        print("✓ All datasets have data")
+    except StopIteration:
+        raise RuntimeError("One or more datasets are empty. Check feature shards.")
 
     if os.getenv("TF_CONFIG"):
         strategy = tf.distribute.MultiWorkerMirroredStrategy()
@@ -151,7 +165,8 @@ def main() -> None:
 
     model_dir = os.getenv("F1_TF_MODEL_PATH", "/app/artifacts/models/tf_driver_win")
     os.makedirs(model_dir, exist_ok=True)
-    model.save(model_dir)
+    model_path = os.path.join(model_dir, "model.keras")
+    model.save(model_path)
 
     metrics_dir = os.getenv("F1_TF_EVAL_PATH", "/app/artifacts/evaluations")
     os.makedirs(metrics_dir, exist_ok=True)
