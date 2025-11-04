@@ -103,8 +103,24 @@ flowchart TB
 | `pgadmin` | Optional Postgres UI for manual inspection. |
 | `neo4j` | Optional knowledge graph store backing the graph analytics export. |
 
+## Architecture Documentation
+
+Comprehensive architecture diagrams and documentation are available in the `docs/` folder:
+
+- **[Star Schema Design](docs/star_schema.md)** - Dimensional data model with fact/dimension tables optimized for analytics and ML feature engineering
+- **[IT Infrastructure Architecture](docs/infrastructure_architecture.md)** - Docker Compose service architecture, network topology, data flows, and deployment guide
+- **[Architecture Overview](docs/README.md)** - Quick reference and integration guide for both diagrams
+
+These documents include:
+- Mermaid diagrams (auto-rendered on GitHub)
+- Detailed component descriptions
+- SQL query patterns for ML features
+- Scaling and security recommendations
+- Monitoring and disaster recovery strategies
+
 ## Contribution tips
 
 - Keep new documentation in the appropriate numbered runbook or reference folder so the execution order remains obvious.
 - Whenever you introduce a new pipeline stage, describe its inputs/outputs in the relevant README and update the root table above.
 - Use the `artifacts/` folder (or override via env vars) for outputs so dashboards and collaborators can locate results automatically.
+- Update architecture diagrams in `docs/` when modifying database schema or infrastructure services.
