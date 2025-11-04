@@ -7,46 +7,49 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 
 ```mermaid
 flowchart TB
-  %% Layer 0 - External
-  subgraph L0[External]
-    USER[User / Data Scientist]
-    ANALYST[Business Analyst]
+  %% Layer A - Inputs
+  subgraph A[Inputs]
+    CSV[(CSV Files\n`data/*.csv`)]
   end
 
-  %% Layer 1 - Data & Storage
-  subgraph L1[Data & Storage]
-    CSV[(CSV Files\ndata/*.csv)]
-    POSTGRES[(PostgreSQL\nf1_postgres\n5432)]
-    ARTIFACTS[(Artifacts\nmodels / metrics / features)]
-    NEO4J[(Neo4j\nf1_neo4j\n7474 / 7687)]
+  %% Layer B - Core Services
+  subgraph B[Core Services]
+    POSTGRES[(PostgreSQL\n`f1_postgres`)]
+    NEO4J[(Neo4j\nGraph DB)]
+    ARTIFACTS[(Artifacts\nmodels | metrics | features)]
   end
 
-  %% Layer 2 - Processing
-  subgraph L2[Processing]
-    ETL[etl_service\nETL + Spark submit]
-    subgraph SPARK[Standalone Spark Cluster]
-      MASTER[spark-master\n7077 / 8080]
-      WORKER1[spark-worker-1]
-      WORKER2[spark-worker-2]
-    end
-    GRAPH[Graph analytics job]
+  %% Layer C - Processing Cluster
+  subgraph C[Processing]
+    ETL[etl_service\nExtract & Load]
+    MASTER[spark-master\nCluster Manager]
+    WORKER1[spark-worker-1]
+    WORKER2[spark-worker-2]
+    GRAPH[Graph Analytics\n(networkx → Neo4j)]
   end
 
-  %% Layer 3 - Machine Learning
-  subgraph L3[Machine Learning]
+  %% Layer D - ML Workloads
+  subgraph D[Machine Learning]
     CLASSIC[ml_train\nScikit-learn]
     MLLIB[Spark MLlib\nRandom Forest]
-    TF[TensorFlow trainer]
+    TF[TensorFlow Trainer]
   end
 
-  %% Layer 4 - Dashboards & Admin
-  subgraph L4[Dashboards & Admin]
-    DASH1[dashboard_classic\nStreamlit 8501]
-    DASH2[dashboard_bigdata\nStreamlit 8502]
+  %% Layer E - Interfaces
+  subgraph E[Dashboards & Admin]
+    DASH_CLASSIC[dashboard_classic\nStreamlit 8501]
+    DASH_BIGDATA[dashboard_bigdata\nStreamlit 8502]
     PGADMIN[pgAdmin\n5050]
+    NEO4J_UI[Neo4j Browser\n7474]
   end
 
-  %% Data ingestion paths
+  %% Layer F - Users
+  subgraph F[Users]
+    DS[Data Scientist]
+    BA[Business Analyst]
+  end
+
+  %% Pipelines
   CSV --> ETL
   ETL --> POSTGRES
   ETL --> MASTER
@@ -55,40 +58,43 @@ flowchart TB
   MASTER --> WORKER1
   MASTER --> WORKER2
 
-  %% Feature engineering & ML
-  MASTER --> MLLIB
   POSTGRES --> CLASSIC
+  MASTER --> MLLIB
   MLLIB --> ARTIFACTS
   CLASSIC --> ARTIFACTS
   ARTIFACTS --> TF
   TF --> ARTIFACTS
 
-  %% Visualization & admin flows
-  POSTGRES --> DASH1
-  ARTIFACTS --> DASH1
-  ARTIFACTS --> DASH2
+  POSTGRES --> DASH_CLASSIC
+  ARTIFACTS --> DASH_CLASSIC
+  ARTIFACTS --> DASH_BIGDATA
   POSTGRES --> PGADMIN
-  NEO4J --> ANALYST
+  NEO4J --> NEO4J_UI
 
-  %% User touchpoints (dashed)
-  USER -.-> DASH1
-  USER -.-> DASH2
-  USER -.-> MASTER
-  USER -.-> CLASSIC
-  USER -.-> TF
+  DS -.-> DASH_CLASSIC
+  DS -.-> DASH_BIGDATA
+  DS -.-> MASTER
+  DS -.-> CLASSIC
+  DS -.-> TF
+  BA -.-> DASH_CLASSIC
+  BA -.-> DASH_BIGDATA
+  BA -.-> PGADMIN
+  BA -.-> NEO4J_UI
 
   %% Styling
-  classDef storage fill:#4A90E2,stroke:#2E5C8A,color:white
-  classDef processing fill:#50C878,stroke:#2E7D4E,color:white
-  classDef ml fill:#F39C12,stroke:#C87F0A,color:white
-  classDef viz fill:#E74C3C,stroke:#C0392B,color:white
-  classDef external fill:#95A5A6,stroke:#7F8C8D,color:white
+  classDef inputs fill:#DDEBF8,stroke:#2E74B5
+  classDef core fill:#C6E0B4,stroke:#548235
+  classDef processing fill:#FFE699,stroke:#BF8F00
+  classDef ml fill:#F8CBAD,stroke:#C65911
+  classDef interface fill:#E4DFEC,stroke:#5F497A
+  classDef users fill:#D9D9D9,stroke:#7F7F7F
 
-  class CSV,POSTGRES,ARTIFACTS,NEO4J storage
+  class CSV inputs
+  class POSTGRES,NEO4J,ARTIFACTS core
   class ETL,MASTER,WORKER1,WORKER2,GRAPH processing
   class CLASSIC,MLLIB,TF ml
-  class DASH1,DASH2,PGADMIN viz
-  class USER,ANALYST external
+  class DASH_CLASSIC,DASH_BIGDATA,PGADMIN,NEO4J_UI interface
+  class DS,BA users
 ```
 
   ### Exporting the Diagram as an Image
