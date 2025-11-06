@@ -9,14 +9,14 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 flowchart TB
   %% Layer A - Inputs
   subgraph A[Inputs]
-    CSV[(CSV Files\n`data/*.csv`)]
+    CSV[(CSV Files\ndata/*.csv)]
   end
 
   %% Layer B - Core Services
   subgraph B[Core Services]
-    POSTGRES[(PostgreSQL\n`f1_postgres`)]
-    NEO4J[(Neo4j\nGraph DB)]
-    ARTIFACTS[(Artifacts\nmodels | metrics | features)]
+  POSTGRES[(PostgreSQL\nf1_postgres)]
+  NEO4J[(Neo4j\nGraph DB)]
+  ARTIFACTS[(Artifacts\nmodels\nmetrics\nfeatures)]
   end
 
   %% Layer C - Processing Cluster
@@ -25,7 +25,7 @@ flowchart TB
     MASTER[spark-master\nCluster Manager]
     WORKER1[spark-worker-1]
     WORKER2[spark-worker-2]
-    GRAPH[Graph Analytics\n(networkx → Neo4j)]
+  GRAPH[Graph Analytics\n(networkx -> Neo4j)]
   end
 
   %% Layer D - ML Workloads
