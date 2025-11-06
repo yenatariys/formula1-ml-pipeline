@@ -9,13 +9,11 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 flowchart TB
   %% Layer 1 · Input
   subgraph L1[Layer 1 · Input]
-    direction TB
     CSV[[CSV files\ndata/*.csv]]
   end
 
   %% Layer 2 · Storage
   subgraph L2[Layer 2 · Storage]
-    direction TB
     POSTGRES[(PostgreSQL\nf1_postgres\nport 5432)]
     ARTIFACTS[(Artifact store\nmodels\nmetrics\nfeature shards)]
     NEO4J[(Neo4j database\nports 7474 / 7687)]
@@ -23,20 +21,15 @@ flowchart TB
 
   %% Layer 3 · Processing
   subgraph L3[Layer 3 · Processing]
-    direction TB
     ETL[etl_service\nPython + Spark submit]
-    subgraph SPARK[Standalone Spark cluster]
-      direction TB
-      MASTER[spark-master]
-      WORKER1[spark-worker-1]
-      WORKER2[spark-worker-2]
-    end
-    GRAPH[Graph analytics job\nnetworkx export]
+    MASTER[spark-master]
+    WORKER1[spark-worker-1]
+    WORKER2[spark-worker-2]
+    GRAPH[Graph analytics\nnetworkx export]
   end
 
   %% Layer 4 · Machine Learning
   subgraph L4[Layer 4 · Machine Learning]
-    direction TB
     CLASSIC[ml_train\nScikit-learn]
     MLLIB[Spark MLlib trainer]
     TF[TensorFlow trainer]
@@ -44,7 +37,6 @@ flowchart TB
 
   %% Layer 5 · Interfaces
   subgraph L5[Layer 5 · Interfaces]
-    direction TB
     DASH_CLASSIC[Classic dashboard\nStreamlit 8501]
     DASH_BIGDATA[Big-data dashboard\nStreamlit 8502]
     PGADMIN[pgAdmin\nport 5050]
@@ -53,12 +45,11 @@ flowchart TB
 
   %% Layer 6 · Users
   subgraph L6[Layer 6 · Users]
-    direction TB
     DS((Data scientist))
     BA((Business analyst))
   end
 
-  %% Pipelines
+  %% Pipelines (solid lines)
   CSV --> ETL
   ETL --> POSTGRES
   ETL --> MASTER
@@ -80,6 +71,7 @@ flowchart TB
   POSTGRES --> PGADMIN
   NEO4J --> NEO4J_UI
 
+  %% User touchpoints (dashed)
   DS -.-> DASH_CLASSIC
   DS -.-> DASH_BIGDATA
   DS -.-> MASTER
