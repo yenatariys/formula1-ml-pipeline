@@ -6,99 +6,43 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 ## Infrastructure Diagram
 
 ```mermaid
-flowchart TB
-  %% Layer 1 · Input
-  subgraph L1[Layer 1 · Input]
-    CSV[[CSV files\ndata/*.csv]]
-  end
+flowchart TD
+    CSV[CSV Files] --> ETL[ETL Service]
+    
+    ETL --> POSTGRES[(PostgreSQL)]
+    ETL --> SPARK[Spark Cluster]
+    ETL --> NEO4J[(Neo4j)]
+    
+    POSTGRES --> ML_CLASSIC[Classic ML]
+    SPARK --> ML_SPARK[Spark MLlib]
+    
+    ML_CLASSIC --> ARTIFACTS[(Artifacts)]
+    ML_SPARK --> ARTIFACTS
+    ARTIFACTS --> ML_TF[TensorFlow]
+    ML_TF --> ARTIFACTS
+    
+    POSTGRES --> DASH_C[Classic Dashboard]
+    ARTIFACTS --> DASH_C
+    ARTIFACTS --> DASH_B[BigData Dashboard]
+    
+    POSTGRES --> ADMIN[pgAdmin]
+    NEO4J --> NEO4J_UI[Neo4j Browser]
+    
+    USER[Users] -.-> DASH_C
+    USER -.-> DASH_B
+    USER -.-> ADMIN
+    USER -.-> NEO4J_UI
 
-  %% Layer 2 · Storage
-  subgraph L2[Layer 2 · Storage]
-    POSTGRES[(PostgreSQL\nf1_postgres\nport 5432)]
-    ARTIFACTS[(Artifact store\nmodels\nmetrics\nfeature shards)]
-    NEO4J[(Neo4j database\nports 7474 / 7687)]
-  end
-
-  %% Layer 3 · Processing
-  subgraph L3[Layer 3 · Processing]
-    ETL[etl_service\nPython + Spark submit]
-    MASTER[spark-master]
-    WORKER1[spark-worker-1]
-    WORKER2[spark-worker-2]
-    GRAPH[Graph analytics\nnetworkx export]
-  end
-
-  %% Layer 4 · Machine Learning
-  subgraph L4[Layer 4 · Machine Learning]
-    CLASSIC[ml_train\nScikit-learn]
-    MLLIB[Spark MLlib trainer]
-    TF[TensorFlow trainer]
-  end
-
-  %% Layer 5 · Interfaces
-  subgraph L5[Layer 5 · Interfaces]
-    DASH_CLASSIC[Classic dashboard\nStreamlit 8501]
-    DASH_BIGDATA[Big-data dashboard\nStreamlit 8502]
-    PGADMIN[pgAdmin\nport 5050]
-    NEO4J_UI[Neo4j browser\nport 7474]
-  end
-
-  %% Layer 6 · Users
-  subgraph L6[Layer 6 · Users]
-    DS((Data scientist))
-    BA((Business analyst))
-  end
-
-  %% Pipelines (solid lines)
-  CSV --> ETL
-  ETL --> POSTGRES
-  ETL --> MASTER
-  ETL --> GRAPH
-  GRAPH --> NEO4J
-  MASTER --> WORKER1
-  MASTER --> WORKER2
-
-  POSTGRES --> CLASSIC
-  MASTER --> MLLIB
-  MLLIB --> ARTIFACTS
-  CLASSIC --> ARTIFACTS
-  ARTIFACTS --> TF
-  TF --> ARTIFACTS
-
-  POSTGRES --> DASH_CLASSIC
-  ARTIFACTS --> DASH_CLASSIC
-  ARTIFACTS --> DASH_BIGDATA
-  POSTGRES --> PGADMIN
-  NEO4J --> NEO4J_UI
-
-  %% User touchpoints (dashed)
-  DS -.-> DASH_CLASSIC
-  DS -.-> DASH_BIGDATA
-  DS -.-> MASTER
-  DS -.-> CLASSIC
-  DS -.-> TF
-  BA -.-> DASH_CLASSIC
-  BA -.-> DASH_BIGDATA
-  BA -.-> PGADMIN
-  BA -.-> NEO4J_UI
-
-  %% Styling
-  classDef storage fill:#DDEBF8,stroke:#2E74B5,color:#1f3b61,font-size:12px
-  classDef processing fill:#FCE4D6,stroke:#C65911,color:#5c2608,font-size:12px
-  classDef ml fill:#E2F0D9,stroke:#548235,color:#2b4b16,font-size:12px
-  classDef interface fill:#E4DFEC,stroke:#5F497A,color:#3b3056,font-size:12px
-  classDef users fill:#D9D9D9,stroke:#7F7F7F,color:#404040,font-size:12px
-  classDef input fill:#FFF2CC,stroke:#BF8F00,color:#6b5400,font-size:12px
-
-  class CSV input
-  class POSTGRES,ARTIFACTS,NEO4J storage
-  class ETL,MASTER,WORKER1,WORKER2,GRAPH processing
-  class CLASSIC,MLLIB,TF ml
-  class DASH_CLASSIC,DASH_BIGDATA,PGADMIN,NEO4J_UI interface
-  class DS,BA users
-```
-
-  ### Exporting the Diagram as an Image
+    classDef storage fill:#E1F5FE,stroke:#0277BD,stroke-width:2px
+    classDef processing fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
+    classDef ml fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
+    classDef viz fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
+    
+    class CSV,POSTGRES,ARTIFACTS,NEO4J storage
+    class ETL,SPARK processing
+    class ML_CLASSIC,ML_SPARK,ML_TF ml
+    class DASH_C,DASH_B,ADMIN,NEO4J_UI,USER viz
+```  ### Exporting the Diagram as an Image
 
   If you need a PNG/SVG version of the diagram, install the Mermaid CLI and render the markdown file directly:
 
