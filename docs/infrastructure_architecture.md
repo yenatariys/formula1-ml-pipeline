@@ -7,46 +7,55 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 
 ```mermaid
 flowchart TB
-  %% Layer A - Inputs
-  subgraph A[Inputs]
-    CSV[(CSV Files\ndata/*.csv)]
+  %% Layer 1 · Input
+  subgraph L1[Layer 1 · Input]
+    direction TB
+    CSV[[CSV files\ndata/*.csv]]
   end
 
-  %% Layer B - Core Services
-  subgraph B[Core Services]
-  POSTGRES[(PostgreSQL\nf1_postgres)]
-  NEO4J[(Neo4j\nGraph DB)]
-  ARTIFACTS[(Artifacts\nmodels\nmetrics\nfeatures)]
+  %% Layer 2 · Storage
+  subgraph L2[Layer 2 · Storage]
+    direction TB
+    POSTGRES[(PostgreSQL\nf1_postgres\nport 5432)]
+    ARTIFACTS[(Artifact store\nmodels\nmetrics\nfeature shards)]
+    NEO4J[(Neo4j database\nports 7474 / 7687)]
   end
 
-  %% Layer C - Processing Cluster
-  subgraph C[Processing]
-    ETL[etl_service\nExtract & Load]
-    MASTER[spark-master\nCluster Manager]
-    WORKER1[spark-worker-1]
-    WORKER2[spark-worker-2]
-  GRAPH[Graph Analytics\nnetworkx to Neo4j]
+  %% Layer 3 · Processing
+  subgraph L3[Layer 3 · Processing]
+    direction TB
+    ETL[etl_service\nPython + Spark submit]
+    subgraph SPARK[Standalone Spark cluster]
+      direction TB
+      MASTER[spark-master]
+      WORKER1[spark-worker-1]
+      WORKER2[spark-worker-2]
+    end
+    GRAPH[Graph analytics job\nnetworkx export]
   end
 
-  %% Layer D - ML Workloads
-  subgraph D[Machine Learning]
+  %% Layer 4 · Machine Learning
+  subgraph L4[Layer 4 · Machine Learning]
+    direction TB
     CLASSIC[ml_train\nScikit-learn]
-    MLLIB[Spark MLlib\nRandom Forest]
-    TF[TensorFlow Trainer]
+    MLLIB[Spark MLlib trainer]
+    TF[TensorFlow trainer]
   end
 
-  %% Layer E - Interfaces
-  subgraph E[Dashboards & Admin]
-    DASH_CLASSIC[dashboard_classic\nStreamlit 8501]
-    DASH_BIGDATA[dashboard_bigdata\nStreamlit 8502]
-    PGADMIN[pgAdmin\n5050]
-    NEO4J_UI[Neo4j Browser\n7474]
+  %% Layer 5 · Interfaces
+  subgraph L5[Layer 5 · Interfaces]
+    direction TB
+    DASH_CLASSIC[Classic dashboard\nStreamlit 8501]
+    DASH_BIGDATA[Big-data dashboard\nStreamlit 8502]
+    PGADMIN[pgAdmin\nport 5050]
+    NEO4J_UI[Neo4j browser\nport 7474]
   end
 
-  %% Layer F - Users
-  subgraph F[Users]
-    DS[Data Scientist]
-    BA[Business Analyst]
+  %% Layer 6 · Users
+  subgraph L6[Layer 6 · Users]
+    direction TB
+    DS((Data scientist))
+    BA((Business analyst))
   end
 
   %% Pipelines
@@ -82,15 +91,15 @@ flowchart TB
   BA -.-> NEO4J_UI
 
   %% Styling
-  classDef inputs fill:#DDEBF8,stroke:#2E74B5
-  classDef core fill:#C6E0B4,stroke:#548235
-  classDef processing fill:#FFE699,stroke:#BF8F00
-  classDef ml fill:#F8CBAD,stroke:#C65911
-  classDef interface fill:#E4DFEC,stroke:#5F497A
-  classDef users fill:#D9D9D9,stroke:#7F7F7F
+  classDef storage fill:#DDEBF8,stroke:#2E74B5,color:#1f3b61,font-size:12px
+  classDef processing fill:#FCE4D6,stroke:#C65911,color:#5c2608,font-size:12px
+  classDef ml fill:#E2F0D9,stroke:#548235,color:#2b4b16,font-size:12px
+  classDef interface fill:#E4DFEC,stroke:#5F497A,color:#3b3056,font-size:12px
+  classDef users fill:#D9D9D9,stroke:#7F7F7F,color:#404040,font-size:12px
+  classDef input fill:#FFF2CC,stroke:#BF8F00,color:#6b5400,font-size:12px
 
-  class CSV inputs
-  class POSTGRES,NEO4J,ARTIFACTS core
+  class CSV input
+  class POSTGRES,ARTIFACTS,NEO4J storage
   class ETL,MASTER,WORKER1,WORKER2,GRAPH processing
   class CLASSIC,MLLIB,TF ml
   class DASH_CLASSIC,DASH_BIGDATA,PGADMIN,NEO4J_UI interface
