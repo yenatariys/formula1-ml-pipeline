@@ -25,7 +25,7 @@ flowchart TB
     MASTER[spark-master\nCluster Manager]
     WORKER1[spark-worker-1]
     WORKER2[spark-worker-2]
-  GRAPH[Graph Analytics\n(networkx -> Neo4j)]
+  GRAPH[Graph Analytics\nnetworkx to Neo4j]
   end
 
   %% Layer D - ML Workloads
