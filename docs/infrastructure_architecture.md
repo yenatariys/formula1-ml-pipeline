@@ -42,12 +42,14 @@ flowchart TD
     class ETL,SPARK processing
     class ML_CLASSIC,ML_SPARK,ML_TF ml
     class DASH_C,DASH_B,ADMIN,NEO4J_UI,USER viz
-```  ### Exporting the Diagram as an Image
+```
 
-  If you need a PNG/SVG version of the diagram, install the Mermaid CLI and render the markdown file directly:
+### Exporting the Diagram as an Image
 
-  ```powershell
-  npm install -g @mermaid-js/mermaid-cli
+If you need a PNG/SVG version of the diagram, install the Mermaid CLI and render the markdown file directly:
+
+```powershell
+npm install -g @mermaid-js/mermaid-cli
   mmdc -i docs/infrastructure_architecture.md -o docs/figures/infrastructure.png
   ```
 
