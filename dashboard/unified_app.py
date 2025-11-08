@@ -878,12 +878,12 @@ def render_lap_time_analysis():
             ))
             st.plotly_chart(fig_pred, use_container_width=True)
             
-            st.success(f"✅ Model trained on {len(X_train):,} laps, tested on {len(X_test):,} laps")
+            st.success(f"✅ Model trained on {len(ml_data):,} laps total")
         else:
             st.warning("Insufficient data for ML modeling (need >100 records)")
     
     with ml_tab2:
-        st.subheader("Driver Performance Clustering")
+        st.subheader(f"Driver Performance Clustering - {ml_mode}")
         
         # Aggregate driver statistics
         driver_agg = year_data.groupby('driver_name').agg({
@@ -896,22 +896,83 @@ def render_lap_time_analysis():
         driver_agg = driver_agg[driver_agg['total_laps'] >= 10]  # Filter drivers with enough laps
         
         if len(driver_agg) >= 5:
-            # Prepare features for clustering
-            features = driver_agg[['avg_time', 'std_time', 'avg_position']].copy()
-            scaler = StandardScaler()
-            features_scaled = scaler.fit_transform(features)
-            
             # Determine optimal clusters (2-5)
             n_clusters = min(4, len(driver_agg) // 3)
             n_clusters = max(2, n_clusters)
             
-            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-            driver_agg['cluster'] = kmeans.fit_predict(features_scaled)
+            if ml_mode == "Classic ML":
+                # ============ CLASSIC ML (SCIKIT-LEARN) ============
+                # Prepare features for clustering
+                features = driver_agg[['avg_time', 'std_time', 'avg_position']].copy()
+                scaler = StandardScaler()
+                features_scaled = scaler.fit_transform(features)
+                
+                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                driver_agg['cluster'] = kmeans.fit_predict(features_scaled)
+                
+                silhouette = silhouette_score(features_scaled, driver_agg['cluster'])
+                
+            else:  # Big Data ML
+                # ============ BIG DATA ML (PYSPARK MLLIB) ============
+                spark = get_spark_session()
+                if spark is None:
+                    st.error("Spark session not available")
+                    return
+                
+                with st.spinner("Clustering drivers (PySpark MLlib)..."):
+                    # Convert to Spark DataFrame
+                    spark_df = spark.createDataFrame(driver_agg[['driver_name', 'avg_time', 'std_time', 'avg_position']])
+                    
+                    # Create feature vector
+                    assembler = VectorAssembler(
+                        inputCols=['avg_time', 'std_time', 'avg_position'],
+                        outputCol='features_raw'
+                    )
+                    
+                    # Standardize features
+                    scaler_spark = SparkStandardScaler(
+                        inputCol='features_raw',
+                        outputCol='features',
+                        withMean=True,
+                        withStd=True
+                    )
+                    
+                    # KMeans clustering
+                    kmeans_spark = SparkKMeans(
+                        featuresCol='features',
+                        k=n_clusters,
+                        seed=42,
+                        maxIter=20
+                    )
+                    
+                    # Pipeline
+                    pipeline = Pipeline(stages=[assembler, scaler_spark, kmeans_spark])
+                    
+                    # Fit model
+                    model = pipeline.fit(spark_df)
+                    
+                    # Predictions
+                    clustered = model.transform(spark_df)
+                    
+                    # Convert back to pandas
+                    result_df = clustered.select('driver_name', 'prediction').toPandas()
+                    driver_agg = driver_agg.merge(result_df, on='driver_name', how='left')
+                    driver_agg['cluster'] = driver_agg['prediction']
+                    
+                    # Calculate silhouette score using sklearn for consistency
+                    features = driver_agg[['avg_time', 'std_time', 'avg_position']].copy()
+                    scaler_sk = StandardScaler()
+                    features_scaled = scaler_sk.fit_transform(features)
+                    silhouette = silhouette_score(features_scaled, driver_agg['cluster'])
             
-            silhouette = silhouette_score(features_scaled, driver_agg['cluster'])
-            
-            st.metric("Silhouette Score", f"{silhouette:.3f}")
-            st.info(f"Drivers grouped into {n_clusters} performance clusters")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Silhouette Score", f"{silhouette:.3f}")
+                st.info(f"Drivers grouped into {n_clusters} performance clusters")
+            with col2:
+                if ml_mode == "Big Data ML":
+                    st.success("✅ Clustered using PySpark MLlib")
+                st.metric("Drivers Analyzed", len(driver_agg))
             
             # Visualize clusters
             fig_cluster = px.scatter(
@@ -956,23 +1017,65 @@ def render_lap_time_analysis():
             st.warning("Insufficient drivers for clustering analysis")
     
     with ml_tab3:
-        st.subheader("Anomaly Detection - Unusual Lap Times")
+        st.subheader(f"Anomaly Detection - Unusual Lap Times - {ml_mode}")
         
         if len(year_data) > 50:
-            # Calculate Z-scores for lap times
             year_data_copy = year_data.copy()
             year_data_copy['lap_time_seconds'] = year_data_copy['milliseconds'] / 1000
             
-            # Group by race and calculate z-scores
-            year_data_copy['z_score'] = year_data_copy.groupby('race_name')['lap_time_seconds'].transform(
-                lambda x: np.abs((x - x.mean()) / x.std())
-            )
+            if ml_mode == "Classic ML":
+                # ============ CLASSIC ML (Z-SCORE) ============
+                # Group by race and calculate z-scores
+                year_data_copy['z_score'] = year_data_copy.groupby('race_name')['lap_time_seconds'].transform(
+                    lambda x: np.abs((x - x.mean()) / x.std())
+                )
+                
+                # Find anomalies (z-score > 3)
+                anomalies = year_data_copy[year_data_copy['z_score'] > 3].copy()
+                
+            else:  # Big Data ML
+                # ============ BIG DATA ML (PYSPARK) ============
+                spark = get_spark_session()
+                if spark is None:
+                    st.error("Spark session not available")
+                    return
+                
+                with st.spinner("Detecting anomalies (PySpark)..."):
+                    from pyspark.sql import Window
+                    from pyspark.sql import functions as F
+                    
+                    # Convert to Spark DataFrame
+                    spark_df = spark.createDataFrame(
+                        year_data_copy[['driver_name', 'race_name', 'lap', 'lap_time_seconds', 'position']]
+                    )
+                    
+                    # Calculate mean and std by race using window functions
+                    window_spec = Window.partitionBy('race_name')
+                    
+                    spark_df = spark_df.withColumn('mean_time', F.mean('lap_time_seconds').over(window_spec))
+                    spark_df = spark_df.withColumn('std_time', F.stddev('lap_time_seconds').over(window_spec))
+                    spark_df = spark_df.withColumn(
+                        'z_score',
+                        F.abs((F.col('lap_time_seconds') - F.col('mean_time')) / F.col('std_time'))
+                    )
+                    
+                    # Filter anomalies
+                    anomalies_spark = spark_df.filter(F.col('z_score') > 3)
+                    
+                    # Convert to pandas
+                    anomalies = anomalies_spark.toPandas()
+                    year_data_copy = spark_df.toPandas()
             
-            # Find anomalies (z-score > 3)
-            anomalies = year_data_copy[year_data_copy['z_score'] > 3].copy()
             anomalies = anomalies.sort_values('z_score', ascending=False)
             
-            st.metric("Anomalous Laps Detected", len(anomalies))
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Anomalous Laps Detected", len(anomalies))
+            with col2:
+                if ml_mode == "Big Data ML":
+                    st.success("✅ Detected using PySpark")
+                anomaly_pct = (len(anomalies) / len(year_data_copy)) * 100
+                st.metric("Anomaly Rate", f"{anomaly_pct:.2f}%")
             
             if len(anomalies) > 0:
                 # Show top anomalies
@@ -1434,6 +1537,8 @@ def render_pit_stop_analysis():
             st.dataframe(timing_analysis, use_container_width=True)
             
             # Train classifier to predict strategy
+            st.subheader(f"🎯 Strategy Prediction Model - {ml_mode_pit}")
+            
             if 'constructor_name' in year_data.columns:
                 # Add team information
                 team_mapping = year_data[['driver_name', 'constructor_name']].drop_duplicates()
@@ -1444,31 +1549,105 @@ def render_pit_stop_analysis():
                     ml_strategy['team_encoded'] = pd.factorize(ml_strategy['constructor_name'])[0]
                     ml_strategy['race_encoded'] = pd.factorize(ml_strategy['race_name'])[0]
                     
-                    X_strat = ml_strategy[['team_encoded', 'race_encoded']]
-                    y_strat = ml_strategy['strategy']
-                    
                     # Filter out rare strategies for better classification
-                    strategy_counts_ml = y_strat.value_counts()
+                    strategy_counts_ml = ml_strategy['strategy'].value_counts()
                     valid_strategies = strategy_counts_ml[strategy_counts_ml >= 10].index
-                    mask = y_strat.isin(valid_strategies)
+                    mask = ml_strategy['strategy'].isin(valid_strategies)
                     
-                    X_strat = X_strat[mask]
-                    y_strat = y_strat[mask]
+                    ml_strategy_filtered = ml_strategy[mask]
                     
-                    if len(X_strat) > 50:
-                        X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(
-                            X_strat, y_strat, test_size=0.2, random_state=42
-                        )
-                        
-                        with st.spinner("Training strategy classifier..."):
-                            rf_classifier = RandomForestClassifier(n_estimators=100, max_depth=8, random_state=42)
-                            rf_classifier.fit(X_train_s, y_train_s)
-                            y_pred_s = rf_classifier.predict(X_test_s)
+                    if len(ml_strategy_filtered) > 50:
+                        if ml_mode_pit == "Classic ML":
+                            # ============ CLASSIC ML (SCIKIT-LEARN) ============
+                            X_strat = ml_strategy_filtered[['team_encoded', 'race_encoded']]
+                            y_strat = ml_strategy_filtered['strategy']
                             
-                            accuracy = accuracy_score(y_test_s, y_pred_s)
+                            X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(
+                                X_strat, y_strat, test_size=0.2, random_state=42
+                            )
+                            
+                            with st.spinner("Training strategy classifier (scikit-learn)..."):
+                                rf_classifier = RandomForestClassifier(n_estimators=100, max_depth=8, random_state=42)
+                                rf_classifier.fit(X_train_s, y_train_s)
+                                y_pred_s = rf_classifier.predict(X_test_s)
+                                
+                                accuracy = accuracy_score(y_test_s, y_pred_s)
                         
-                        st.subheader("🎯 Strategy Prediction Model")
-                        st.metric("Classification Accuracy", f"{accuracy:.2%}")
+                        else:  # Big Data ML
+                            # ============ BIG DATA ML (PYSPARK MLLIB) ============
+                            spark = get_spark_session()
+                            if spark is None:
+                                st.error("Spark session not available")
+                                return
+                            
+                            with st.spinner("Training strategy classifier (PySpark MLlib)..."):
+                                from pyspark.ml.feature import StringIndexer, IndexToString
+                                
+                                # Convert to Spark DataFrame
+                                spark_df = spark.createDataFrame(
+                                    ml_strategy_filtered[['team_encoded', 'race_encoded', 'strategy']]
+                                )
+                                
+                                # Index the labels
+                                label_indexer = StringIndexer(
+                                    inputCol='strategy',
+                                    outputCol='label'
+                                )
+                                
+                                # Create feature vector
+                                assembler = VectorAssembler(
+                                    inputCols=['team_encoded', 'race_encoded'],
+                                    outputCol='features'
+                                )
+                                
+                                # Random Forest Classifier
+                                rf_spark = SparkRFClassifier(
+                                    featuresCol='features',
+                                    labelCol='label',
+                                    numTrees=100,
+                                    maxDepth=8,
+                                    seed=42
+                                )
+                                
+                                # Convert indexed labels back to original labels
+                                label_converter = IndexToString(
+                                    inputCol='prediction',
+                                    outputCol='predictedLabel',
+                                    labels=label_indexer.fit(spark_df).labels
+                                )
+                                
+                                # Pipeline
+                                pipeline = Pipeline(stages=[label_indexer, assembler, rf_spark, label_converter])
+                                
+                                # Split data
+                                train_df, test_df = spark_df.randomSplit([0.8, 0.2], seed=42)
+                                
+                                # Train model
+                                model = pipeline.fit(train_df)
+                                
+                                # Predictions
+                                predictions = model.transform(test_df)
+                                
+                                # Evaluate
+                                evaluator = MulticlassClassificationEvaluator(
+                                    labelCol='label',
+                                    predictionCol='prediction',
+                                    metricName='accuracy'
+                                )
+                                accuracy = evaluator.evaluate(predictions)
+                                
+                                # Convert to pandas for classification report
+                                pred_df = predictions.select('strategy', 'predictedLabel').toPandas()
+                                y_test_s = pred_df['strategy']
+                                y_pred_s = pred_df['predictedLabel']
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Classification Accuracy", f"{accuracy:.2%}")
+                        with col2:
+                            if ml_mode_pit == "Big Data ML":
+                                st.success("✅ Classified using PySpark MLlib")
+                            st.metric("Strategies Predicted", len(valid_strategies))
                         
                         # Classification report
                         with st.expander("View Detailed Classification Report"):
@@ -1479,7 +1658,7 @@ def render_pit_stop_analysis():
             st.warning("Insufficient data for strategy classification")
     
     with ml_tab3:
-        st.subheader("Team Pit Crew Performance Clustering")
+        st.subheader(f"Team Pit Crew Performance Clustering - {ml_mode_pit}")
         
         if 'constructor_name' in year_data.columns:
             # Aggregate team performance
@@ -1492,21 +1671,77 @@ def render_pit_stop_analysis():
             team_perf = team_perf[team_perf['total_stops'] >= 20]  # Filter teams with enough data
             
             if len(team_perf) >= 3:
-                # Prepare features
-                features = team_perf[['avg_duration', 'std_duration', 'best_time']].copy()
-                scaler = StandardScaler()
-                features_scaled = scaler.fit_transform(features)
-                
                 # Determine optimal clusters
                 n_clusters = min(3, len(team_perf) // 2)
                 n_clusters = max(2, n_clusters)
                 
-                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-                team_perf['cluster'] = kmeans.fit_predict(features_scaled)
+                if ml_mode_pit == "Classic ML":
+                    # ============ CLASSIC ML (SCIKIT-LEARN) ============
+                    features = team_perf[['avg_duration', 'std_duration', 'best_time']].copy()
+                    scaler = StandardScaler()
+                    features_scaled = scaler.fit_transform(features)
+                    
+                    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                    team_perf['cluster'] = kmeans.fit_predict(features_scaled)
+                    
+                    silhouette = silhouette_score(features_scaled, team_perf['cluster'])
                 
-                silhouette = silhouette_score(features_scaled, team_perf['cluster'])
+                else:  # Big Data ML
+                    # ============ BIG DATA ML (PYSPARK MLLIB) ============
+                    spark = get_spark_session()
+                    if spark is None:
+                        st.error("Spark session not available")
+                        return
+                    
+                    with st.spinner("Clustering teams (PySpark MLlib)..."):
+                        # Convert to Spark DataFrame
+                        spark_df = spark.createDataFrame(
+                            team_perf[['team', 'avg_duration', 'std_duration', 'best_time']]
+                        )
+                        
+                        # Create feature vector
+                        assembler = VectorAssembler(
+                            inputCols=['avg_duration', 'std_duration', 'best_time'],
+                            outputCol='features_raw'
+                        )
+                        
+                        # Standardize features
+                        scaler_spark = SparkStandardScaler(
+                            inputCol='features_raw',
+                            outputCol='features',
+                            withMean=True,
+                            withStd=True
+                        )
+                        
+                        # KMeans clustering
+                        kmeans_spark = SparkKMeans(
+                            featuresCol='features',
+                            k=n_clusters,
+                            seed=42,
+                            maxIter=20
+                        )
+                        
+                        # Pipeline
+                        pipeline = Pipeline(stages=[assembler, scaler_spark, kmeans_spark])
+                        
+                        # Fit model
+                        model = pipeline.fit(spark_df)
+                        
+                        # Predictions
+                        clustered = model.transform(spark_df)
+                        
+                        # Convert back to pandas
+                        result_df = clustered.select('team', 'prediction').toPandas()
+                        team_perf = team_perf.merge(result_df, on='team', how='left')
+                        team_perf['cluster'] = team_perf['prediction']
+                        
+                        # Calculate silhouette score using sklearn for consistency
+                        features = team_perf[['avg_duration', 'std_duration', 'best_time']].copy()
+                        scaler_sk = StandardScaler()
+                        features_scaled = scaler_sk.fit_transform(features)
+                        silhouette = silhouette_score(features_scaled, team_perf['cluster'])
                 
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 
                 with col1:
                     st.metric("Silhouette Score", f"{silhouette:.3f}")
@@ -1515,6 +1750,12 @@ def render_pit_stop_analysis():
                 with col2:
                     st.metric("Teams Analyzed", len(team_perf))
                     st.metric("Total Pit Stops", int(team_perf['total_stops'].sum()))
+                
+                with col3:
+                    if ml_mode_pit == "Big Data ML":
+                        st.success("✅ Clustered using PySpark MLlib")
+                    else:
+                        st.info("📊 Classic ML clustering")
                 
                 # Visualize clusters
                 fig_team_cluster = px.scatter(
