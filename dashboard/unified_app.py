@@ -156,14 +156,26 @@ def get_spark_session():
 
 @st.cache_data
 def load_results():
-    """Load race results from database."""
-    if not DB_AVAILABLE or engine is None:
-        return pd.DataFrame()
-    try:
-        return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
-    except Exception as e:
-        # Silently handle database errors
-        return pd.DataFrame()
+    """Load race results from database or ETL export with auto-fallback."""
+    # Priority 1: Try ETL export (auto-updated after ETL runs)
+    etl_data = load_etl_export()
+    if not etl_data.empty:
+        return etl_data
+    
+    # Priority 2: Try database (if available)
+    if DB_AVAILABLE and engine is not None:
+        try:
+            return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
+        except Exception:
+            pass
+    
+    # Priority 3: Fallback to CSV file (always available in repo)
+    csv_path = BASE_DIR / "data" / "f1_results_joined.csv"
+    if csv_path.exists():
+        return pd.read_csv(csv_path)
+    
+    # Priority 4: Empty DataFrame (if CSV missing)
+    return pd.DataFrame()
 
 
 def _format_timestamp(path: Path) -> str:
@@ -177,6 +189,32 @@ def _format_timestamp(path: Path) -> str:
 def _artefact_status(path: Path) -> str:
     """Return status emoji for artifact."""
     return "✅ Available" if path.exists() else "⚠️ Missing"
+
+
+@st.cache_data(show_spinner=False)
+def load_etl_metadata() -> Optional[Dict]:
+    """Load ETL metadata if available."""
+    metadata_path = BASE_DIR / "artifacts" / "etl_metadata" / "etl_run_info.json"
+    if not metadata_path.exists():
+        return None
+    try:
+        with open(metadata_path, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None
+
+
+@st.cache_data(show_spinner=False, ttl=300)  # Cache for 5 minutes
+def load_etl_export() -> pd.DataFrame:
+    """Load latest ETL export if available (auto-refreshes every 5 min)."""
+    export_path = BASE_DIR / "data" / "etl_exports" / "f1_results_latest.csv"
+    if not export_path.exists():
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(export_path)
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 
 @st.cache_data(show_spinner=False)
@@ -1852,16 +1890,32 @@ def render_classic_overview():
     """Render classic ML overview with race results."""
     st.header("🏎️ Formula 1 Race Results & Classic ML")
     
-    if not DB_AVAILABLE:
-        st.info("📊 Database connection not available. This feature requires PostgreSQL database running locally.")
-        st.info("💡 You can still use **Lap Time Analysis** and **Pit Stop Strategy** sections which work with CSV data!")
-        return
-    
     df = load_results()
     
     if df.empty:
-        st.warning("No race results data available.")
+        st.info("📊 No data available yet.")
+        st.info("💡 **To enable this section:**")
+        st.code("""
+# Run ETL pipeline:
+docker-compose up postgres
+python etl/etl_pipeline.py
+
+# Or use Lap Time & Pit Stop sections (CSV-based)
+        """, language="bash")
         return
+    
+    # Show data source
+    etl_data = load_etl_export()
+    csv_path = BASE_DIR / "data" / "f1_results_joined.csv"
+    
+    if not etl_data.empty:
+        st.success("✅ **Using ETL Export Data** - Auto-updated after ETL runs")
+    elif DB_AVAILABLE:
+        st.info("📊 **Using PostgreSQL Database**")
+    elif csv_path.exists():
+        st.info("📁 **Using CSV Data** - Run ETL pipeline to enable advanced features")
+    else:
+        st.warning("⚠️ Unknown data source")
     
     # Show total records
     st.metric("Total Race Results", f"{len(df):,}")
@@ -2321,6 +2375,39 @@ def main():
     # Main content area
     if page == "🏠 Home":
         st.title("🏁 Formula 1 ML Dashboard - Unified View")
+        
+        # ETL Status Banner
+        etl_metadata = load_etl_metadata()
+        if etl_metadata:
+            status = etl_metadata.get('status', 'unknown')
+            end_time_str = etl_metadata.get('end_time', '')
+            record_count = etl_metadata.get('record_count', 0)
+            
+            if status == 'success':
+                try:
+                    from datetime import datetime
+                    end_time = datetime.fromisoformat(end_time_str)
+                    delta = datetime.now() - end_time
+                    
+                    if delta.days > 0:
+                        freshness = f"{delta.days} day{'s' if delta.days > 1 else ''} ago"
+                    elif delta.seconds >= 3600:
+                        hours = delta.seconds // 3600
+                        freshness = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                    elif delta.seconds >= 60:
+                        minutes = delta.seconds // 60
+                        freshness = f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+                    else:
+                        freshness = "just now"
+                    
+                    st.success(f"✅ **ETL Data Available** - Last updated: {freshness} ({record_count:,} records)")
+                except (ValueError, KeyError):
+                    st.info(f"✅ **ETL Data Available** - {record_count:,} records")
+            else:
+                st.warning(f"⚠️ **Last ETL run failed** - Please check ETL logs")
+        else:
+            st.info("ℹ️ **Using CSV data** - Run ETL pipeline to enable database features")
+        
         st.markdown("""
         Welcome to the unified Formula 1 Machine Learning Dashboard! This dashboard provides
         a comprehensive view of all ML pipelines and models in the project.
@@ -2331,6 +2418,7 @@ def main():
         - View race results and statistics
         - Explore traditional ML model performance
         - Analyze driver and constructor performance
+        - **Auto-updates after ETL runs!**
         
         ### ⚡ Spark MLlib Model
         - Random Forest classifier metrics
@@ -2352,17 +2440,19 @@ def main():
         - ROC-AUC comparison
         - Best model identification
         
-        ### ⏱️ Lap Time Analysis
+        ### ⏱️ Lap Time Analysis (CSV-based)
         - Lap-by-lap performance tracking
         - Driver consistency analysis
         - Fastest lap comparisons
         - Race pace visualization
+        - **6 ML models (Classic + Big Data)**
         
-        ### ⛽ Pit Stop Strategy
+        ### ⛽ Pit Stop Strategy (CSV-based)
         - Pit crew performance analysis
         - Team strategy comparison
         - Stop duration trends
         - Race-specific pit stop patterns
+        - **6 ML models (Classic + Big Data)**
         """)
         
         st.markdown("---")
