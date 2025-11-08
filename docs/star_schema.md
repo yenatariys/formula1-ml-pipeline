@@ -44,29 +44,32 @@ DIM_DRIVER {
 
 FACT_RACE_RESULTS }o--|| DIM_RACE : race_id
 FACT_RACE_RESULTS }o--|| DIM_DRIVER : driver_id
+```mermaid
+erDiagram
+    FACT_DRIVER_RACE_RESULT {
+        int driverId
+        int raceId
+        int year
+        int round
+        int position
+        float points
+        int win
+        float win_rate
+        float avg_points
+    }
+    DIM_DRIVER {
+        int driverId
+        string surname
+    }
+    DIM_RACE {
+        int raceId
+        int year
+        int round
+        string name
+    }
+    FACT_DRIVER_RACE_RESULT ||--|{ DIM_DRIVER : "driverId"
+    FACT_DRIVER_RACE_RESULT ||--|{ DIM_RACE : "raceId"
 ```
-
-### Fact Table
-**`FACT_RACE_RESULTS`** (sourced from `results.csv`)
-- Granularity: one row per driver per race
-- Measures: finishing position, position text, points scored, grid position
-- Links: `race_id` and `driver_id` join to their respective dimensions
-- Additional attributes (optional): laps, fastest lap data, status, milliseconds — add them if the downstream analytics need them
-
-### Dimension Tables
-**`DIM_RACE`** (from `races.csv`)
-- Key columns: `raceId`, `year`, `round`, `name`
-- Recommended derived columns: `season_year`, `round_number`, `race_name`
-- Additional attributes such as `circuitId`, dates for FP/qualifying, or location data can be appended later without impacting the fact table
-
-**`DIM_DRIVER`** (from `drivers.csv`)
-- Key columns: `driverId`, `driverRef`, `code`, `forename`, `surname`
-- Optional extra fields: date of birth, nationality, permanent car number
-- Build convenience columns like `full_name` or `age` in views if needed
-
-## Loading Order
-1. Ingest `DIM_DRIVER` and `DIM_RACE`
-2. Load `FACT_RACE_RESULTS`, enforcing foreign-key validation against the two dimensions
 
 ## Sample Queries
 
