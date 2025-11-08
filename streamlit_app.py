@@ -1,27 +1,11 @@
 """
-Main entry point for Streamlit Cloud deployment.
+Main entry point for Streamlit Cloud deployment - Unified Dashboard.
 
-This file automatically loads the unified dashboard which combines:
-- Classic ML pipeline (scikit-learn models)
-- Big Data pipeline (Spark MLlib + TensorFlow)
-- Feature store visualization
-- Model comparison
-
-For local development with Docker, use the individual dashboards:
-- Classic ML: http://localhost:8501
-- Big Data: http://localhost:8502
-- Unified: http://localhost:8503
+Combines Classic ML and Big Data pipelines with offline artifact viewing.
 """
 
-import sys
-from pathlib import Path
+# Execute the unified dashboard directly
+with open("dashboard/unified_app.py", encoding="utf-8") as f:
+    exec(f.read())
 
-# Add dashboard directory to Python path
-dashboard_dir = Path(__file__).parent / "dashboard"
-sys.path.insert(0, str(dashboard_dir))
 
-# Import and run the unified dashboard
-from unified_app import main
-
-# Run the unified dashboard
-main()
