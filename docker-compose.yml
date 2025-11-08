@@ -114,44 +114,14 @@ services:
     networks:
       - f1_network
 
-  dashboard_classic:
+  dashboard:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
-    container_name: f1_dashboard_classic
-    command: bash -c "python /app/docker/wait_for_table.py && streamlit run dashboard/classic_app.py --server.port=8501 --server.address=0.0.0.0"
+    container_name: f1_dashboard
+    command: bash -c "streamlit run dashboard/unified_app.py --server.port=8501 --server.address=0.0.0.0"
     ports:
       - "8501:8501"
-    depends_on:
-      - postgres
-    volumes:
-      - .:/app
-    networks:
-      - f1_network
-
-  dashboard_bigdata:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-    container_name: f1_dashboard_bigdata
-    command: bash -c "streamlit run dashboard/bigdata_app.py --server.port=8502 --server.address=0.0.0.0"
-    ports:
-      - "8502:8502"
-    depends_on:
-      - spark-master
-    volumes:
-      - .:/app
-    networks:
-      - f1_network
-
-  dashboard_unified:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-    container_name: f1_dashboard_unified
-    command: bash -c "streamlit run dashboard/unified_app.py --server.port=8503 --server.address=0.0.0.0"
-    ports:
-      - "8503:8503"
     depends_on:
       - postgres
       - spark-master
