@@ -10,18 +10,34 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="F1 Race Results Dashboard", layout="wide")
 
 # Database connection
-engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1_data")
+try:
+    engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1_data")
+    DB_AVAILABLE = True
+except Exception:
+    DB_AVAILABLE = False
+    engine = None
 
 # LOAD Race Results 
 @st.cache_data
 def load_results():
-    return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
+    if not DB_AVAILABLE or engine is None:
+        return pd.DataFrame()
+    try:
+        return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
+    except Exception:
+        return pd.DataFrame()
 
 
 df = load_results()
 
 # Dashboard Race Results
 st.title("🏎️ Formula 1 Race Results Dashboard")
+
+# Show database status
+if not DB_AVAILABLE or df.empty:
+    st.warning("⚠️ Database connection not available. This dashboard requires a PostgreSQL database.")
+    st.info("💡 For Streamlit Cloud deployment, use `unified_app.py` instead, which includes both Classic ML and Big Data pipelines with offline artifact viewing.")
+    st.stop()
 
 # Show total records
 st.metric("Total Race Results", len(df))
