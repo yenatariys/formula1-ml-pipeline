@@ -576,5 +576,5 @@ def main():
         render_model_comparison()
 
 
-if __name__ == "__main__":
-    main()
+# Always run main() - compatible with both direct execution and imports
+main()
