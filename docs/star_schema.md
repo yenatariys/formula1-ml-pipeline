@@ -60,40 +60,5 @@ erDiagram
 1. Ingest `DIM_DRIVER` and `DIM_RACE`
 2. Load `FACT_RACE_RESULTS`, enforcing foreign-key validation against the two dimensions
 
-## Sample Queries
-
-```sql
--- Points by driver and season
-SELECT
-    d.surname,
-    r.season_year,
-    SUM(fr.points) AS total_points
-FROM FACT_RACE_RESULTS fr
-JOIN DIM_DRIVER d ON fr.driver_id = d.driver_id
-JOIN DIM_RACE r   ON fr.race_id = r.race_id
-GROUP BY d.surname, r.season_year
-ORDER BY total_points DESC;
-```
-
-```sql
--- Average finishing position per driver
-SELECT
-    d.surname,
-    AVG(fr.finish_position) AS avg_finish
-FROM FACT_RACE_RESULTS fr
-JOIN DIM_DRIVER d ON fr.driver_id = d.driver_id
-GROUP BY d.surname
-ORDER BY avg_finish;
-```
-
-## Why This Works
-- Mirrors the joins already implemented in `extract_data.py`
-- Minimal number of tables keeps maintenance low and onboarding simple
-- Provides a clean base for dashboards, notebooks, or additional ML feature engineering
-- Easy to extend: add new columns or dimensions when more CSV sources are included in the ETL flow
-
----
-
-**Last Updated**: 2025-11-04  
 **Scope**: Current CSV-driven pipeline (`races.csv`, `results.csv`, `drivers.csv`)
         int number
