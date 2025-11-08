@@ -13,30 +13,33 @@ Those sources already provide enough information to build a compact star schema 
 
 ```mermaid
 erDiagram
-FACT_RACE_RESULTS {
-    bigint result_id PK
-    int race_id FK
-    int driver_id FK
-    int constructor_id
-    int grid_position
-    int finish_position
-    varchar position_text
-    decimal points
-}
-
-DIM_RACE {
-    int race_id PK
-    int season_year
-    int round_number
-    varchar race_name
-}
-
-DIM_DRIVER {
-    int driver_id PK
-    varchar driver_ref
-    int car_number
-    varchar code
-    varchar forename
+    FACT_DRIVER_RACE_RESULT {
+        int driverId
+        int raceId
+        int year
+        int round
+        int position
+        float points
+        int win
+        float win_rate
+        float avg_points
+        int races_so_far
+        int wins_so_far
+        float points_so_far
+    }
+    DIM_DRIVER {
+        int driverId
+        string surname
+    }
+    DIM_RACE {
+        int raceId
+        int year
+        int round
+        string name
+    }
+    FACT_DRIVER_RACE_RESULT ||--|{ DIM_DRIVER : "driverId"
+    FACT_DRIVER_RACE_RESULT ||--|{ DIM_RACE : "raceId"
+```
     varchar surname
     date date_of_birth
     varchar nationality
