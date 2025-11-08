@@ -19,6 +19,19 @@ from sklearn.metrics import mean_absolute_error, r2_score, silhouette_score
 import numpy as np
 from sqlalchemy import create_engine
 
+# Try to import PySpark for big data ML
+try:
+    from pyspark.sql import SparkSession
+    from pyspark.ml.regression import RandomForestRegressor as SparkRFRegressor
+    from pyspark.ml.classification import RandomForestClassifier as SparkRFClassifier
+    from pyspark.ml.clustering import KMeans as SparkKMeans
+    from pyspark.ml.feature import VectorAssembler, StandardScaler as SparkStandardScaler
+    from pyspark.ml.evaluation import RegressionEvaluator, MulticlassClassificationEvaluator
+    from pyspark.ml import Pipeline
+    PYSPARK_AVAILABLE = True
+except ImportError:
+    PYSPARK_AVAILABLE = False
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -98,6 +111,23 @@ def _load_feature_sample(max_rows: int = 5000) -> pd.DataFrame:
     
     sample = pd.concat(frames, ignore_index=True)
     return sample.head(max_rows)
+
+
+def get_spark_session():
+    """Get or create Spark session for big data ML."""
+    if not PYSPARK_AVAILABLE:
+        return None
+    
+    try:
+        spark = SparkSession.builder \
+            .appName("F1_Dashboard_ML") \
+            .config("spark.sql.shuffle.partitions", "50") \
+            .config("spark.driver.memory", "2g") \
+            .getOrCreate()
+        return spark
+    except Exception as e:
+        st.warning(f"Could not initialize Spark: {e}")
+        return None
 
 
 @st.cache_data
@@ -682,6 +712,22 @@ def render_lap_time_analysis():
     st.markdown("---")
     st.header("🤖 Machine Learning Analysis")
     
+    # ML Mode selector
+    ml_mode_col1, ml_mode_col2 = st.columns([3, 1])
+    with ml_mode_col1:
+        st.info("💡 Choose between **Classic ML** (scikit-learn) for quick analysis or **Big Data ML** (PySpark MLlib) for scalable distributed computing")
+    with ml_mode_col2:
+        ml_mode = st.radio(
+            "ML Framework",
+            ["Classic ML", "Big Data ML"] if PYSPARK_AVAILABLE else ["Classic ML"],
+            horizontal=True,
+            key="lap_ml_mode"
+        )
+    
+    if ml_mode == "Big Data ML" and not PYSPARK_AVAILABLE:
+        st.error("PySpark is not available. Please install PySpark or use Classic ML mode.")
+        ml_mode = "Classic ML"
+    
     ml_tab1, ml_tab2, ml_tab3 = st.tabs([
         "🎯 Lap Time Prediction", 
         "👥 Driver Clustering", 
@@ -689,42 +735,114 @@ def render_lap_time_analysis():
     ])
     
     with ml_tab1:
-        st.subheader("Lap Time Prediction Model")
+        st.subheader(f"Lap Time Prediction Model - {ml_mode}")
         
         # Prepare data for prediction
         ml_data = year_data[['driver_name', 'race_name', 'lap', 'position', 'milliseconds']].copy()
         ml_data = ml_data.dropna()
         
         if len(ml_data) > 100:
-            # Create features
-            ml_data['driver_encoded'] = pd.factorize(ml_data['driver_name'])[0]
-            ml_data['race_encoded'] = pd.factorize(ml_data['race_name'])[0]
-            ml_data['lap_time_seconds'] = ml_data['milliseconds'] / 1000
-            
-            X = ml_data[['driver_encoded', 'race_encoded', 'lap', 'position']]
-            y = ml_data['lap_time_seconds']
-            
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            
-            with st.spinner("Training Random Forest model..."):
-                rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-                rf_model.fit(X_train, y_train)
-                y_pred = rf_model.predict(X_test)
+            if ml_mode == "Classic ML":
+                # ============ CLASSIC ML (SCIKIT-LEARN) ============
+                # Create features
+                ml_data['driver_encoded'] = pd.factorize(ml_data['driver_name'])[0]
+                ml_data['race_encoded'] = pd.factorize(ml_data['race_name'])[0]
+                ml_data['lap_time_seconds'] = ml_data['milliseconds'] / 1000
                 
-                mae = mean_absolute_error(y_test, y_pred)
-                r2 = r2_score(y_test, y_pred)
+                X = ml_data[['driver_encoded', 'race_encoded', 'lap', 'position']]
+                y = ml_data['lap_time_seconds']
+                
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                
+                with st.spinner("Training Random Forest model (scikit-learn)..."):
+                    rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+                    rf_model.fit(X_train, y_train)
+                    y_pred = rf_model.predict(X_test)
+                    
+                    mae = mean_absolute_error(y_test, y_pred)
+                    r2 = r2_score(y_test, y_pred)
+                
+                feature_importances = rf_model.feature_importances_
+                
+            else:  # Big Data ML
+                # ============ BIG DATA ML (PYSPARK MLLIB) ============
+                spark = get_spark_session()
+                if spark is None:
+                    st.error("Spark session not available")
+                    return
+                
+                with st.spinner("Training Random Forest model (PySpark MLlib)..."):
+                    # Convert to Spark DataFrame
+                    ml_data['driver_encoded'] = pd.factorize(ml_data['driver_name'])[0]
+                    ml_data['race_encoded'] = pd.factorize(ml_data['race_name'])[0]
+                    ml_data['lap_time_seconds'] = ml_data['milliseconds'] / 1000
+                    
+                    spark_df = spark.createDataFrame(ml_data[['driver_encoded', 'race_encoded', 'lap', 'position', 'lap_time_seconds']])
+                    
+                    # Create feature vector
+                    assembler = VectorAssembler(
+                        inputCols=['driver_encoded', 'race_encoded', 'lap', 'position'],
+                        outputCol='features'
+                    )
+                    
+                    # Random Forest Regressor
+                    rf_spark = SparkRFRegressor(
+                        featuresCol='features',
+                        labelCol='lap_time_seconds',
+                        numTrees=100,
+                        maxDepth=10,
+                        seed=42
+                    )
+                    
+                    # Pipeline
+                    pipeline = Pipeline(stages=[assembler, rf_spark])
+                    
+                    # Split data
+                    train_df, test_df = spark_df.randomSplit([0.8, 0.2], seed=42)
+                    
+                    # Train model
+                    model = pipeline.fit(train_df)
+                    
+                    # Predictions
+                    predictions = model.transform(test_df)
+                    
+                    # Evaluate
+                    evaluator = RegressionEvaluator(
+                        labelCol='lap_time_seconds',
+                        predictionCol='prediction',
+                        metricName='mae'
+                    )
+                    mae = evaluator.evaluate(predictions)
+                    
+                    evaluator_r2 = RegressionEvaluator(
+                        labelCol='lap_time_seconds',
+                        predictionCol='prediction',
+                        metricName='r2'
+                    )
+                    r2 = evaluator_r2.evaluate(predictions)
+                    
+                    # Get feature importances
+                    rf_model_spark = model.stages[-1]
+                    feature_importances = rf_model_spark.featureImportances.toArray()
+                    
+                    # Convert predictions to pandas for visualization
+                    pred_sample = predictions.select('lap_time_seconds', 'prediction').limit(100).toPandas()
+                    y_test = pred_sample['lap_time_seconds'].values
+                    y_pred = pred_sample['prediction'].values
             
             col1, col2 = st.columns(2)
             with col1:
                 st.metric("Mean Absolute Error", f"{mae:.3f}s")
                 st.metric("R² Score", f"{r2:.4f}")
+                if ml_mode == "Big Data ML":
+                    st.success("✅ Trained using distributed PySpark MLlib")
             
             with col2:
                 # Feature importance
                 feature_names = ['Driver', 'Race', 'Lap Number', 'Position']
                 importance_df = pd.DataFrame({
                     'Feature': feature_names,
-                    'Importance': rf_model.feature_importances_
+                    'Importance': feature_importances
                 }).sort_values('Importance', ascending=False)
                 
                 fig_importance = px.bar(
@@ -1053,6 +1171,22 @@ def render_pit_stop_analysis():
     st.markdown("---")
     st.header("🤖 Machine Learning Analysis")
     
+    # ML Mode selector
+    ml_mode_col1, ml_mode_col2 = st.columns([3, 1])
+    with ml_mode_col1:
+        st.info("💡 Choose between **Classic ML** (scikit-learn) for quick analysis or **Big Data ML** (PySpark MLlib) for scalable distributed computing")
+    with ml_mode_col2:
+        ml_mode_pit = st.radio(
+            "ML Framework",
+            ["Classic ML", "Big Data ML"] if PYSPARK_AVAILABLE else ["Classic ML"],
+            horizontal=True,
+            key="pit_ml_mode"
+        )
+    
+    if ml_mode_pit == "Big Data ML" and not PYSPARK_AVAILABLE:
+        st.error("PySpark is not available. Please install PySpark or use Classic ML mode.")
+        ml_mode_pit = "Classic ML"
+    
     ml_tab1, ml_tab2, ml_tab3 = st.tabs([
         "🎯 Pit Stop Duration Prediction",
         "📊 Strategy Classification",
@@ -1060,7 +1194,7 @@ def render_pit_stop_analysis():
     ])
     
     with ml_tab1:
-        st.subheader("Pit Stop Duration Prediction")
+        st.subheader(f"Pit Stop Duration Prediction - {ml_mode_pit}")
         
         # Prepare data
         ml_data = year_data[['driver_name', 'race_name', 'lap', 'stop', 'milliseconds']].copy()
@@ -1075,41 +1209,107 @@ def render_pit_stop_analysis():
             if 'constructor_name' in ml_data.columns:
                 ml_data['team_encoded'] = pd.factorize(ml_data['constructor_name'])[0]
                 feature_cols = ['driver_encoded', 'race_encoded', 'team_encoded', 'lap', 'stop']
+                feature_names = ['Driver', 'Race', 'Team', 'Lap', 'Stop Number']
             else:
                 feature_cols = ['driver_encoded', 'race_encoded', 'lap', 'stop']
+                feature_names = ['Driver', 'Race', 'Lap', 'Stop Number']
             
             ml_data['duration_seconds'] = ml_data['milliseconds'] / 1000
             
-            X = ml_data[feature_cols]
-            y = ml_data['duration_seconds']
-            
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            
-            with st.spinner("Training prediction model..."):
-                rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-                rf_model.fit(X_train, y_train)
-                y_pred = rf_model.predict(X_test)
+            if ml_mode_pit == "Classic ML":
+                # ============ CLASSIC ML (SCIKIT-LEARN) ============
+                X = ml_data[feature_cols]
+                y = ml_data['duration_seconds']
                 
-                mae = mean_absolute_error(y_test, y_pred)
-                r2 = r2_score(y_test, y_pred)
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                
+                with st.spinner("Training prediction model (scikit-learn)..."):
+                    rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+                    rf_model.fit(X_train, y_train)
+                    y_pred = rf_model.predict(X_test)
+                    
+                    mae = mean_absolute_error(y_test, y_pred)
+                    r2 = r2_score(y_test, y_pred)
+                
+                feature_importances = rf_model.feature_importances_
+                
+            else:  # Big Data ML
+                # ============ BIG DATA ML (PYSPARK MLLIB) ============
+                spark = get_spark_session()
+                if spark is None:
+                    st.error("Spark session not available")
+                    return
+                
+                with st.spinner("Training prediction model (PySpark MLlib)..."):
+                    # Convert to Spark DataFrame
+                    spark_df = spark.createDataFrame(ml_data[feature_cols + ['duration_seconds']])
+                    
+                    # Create feature vector
+                    assembler = VectorAssembler(
+                        inputCols=feature_cols,
+                        outputCol='features'
+                    )
+                    
+                    # Random Forest Regressor
+                    rf_spark = SparkRFRegressor(
+                        featuresCol='features',
+                        labelCol='duration_seconds',
+                        numTrees=100,
+                        maxDepth=10,
+                        seed=42
+                    )
+                    
+                    # Pipeline
+                    pipeline = Pipeline(stages=[assembler, rf_spark])
+                    
+                    # Split data
+                    train_df, test_df = spark_df.randomSplit([0.8, 0.2], seed=42)
+                    
+                    # Train model
+                    model = pipeline.fit(train_df)
+                    
+                    # Predictions
+                    predictions = model.transform(test_df)
+                    
+                    # Evaluate
+                    evaluator = RegressionEvaluator(
+                        labelCol='duration_seconds',
+                        predictionCol='prediction',
+                        metricName='mae'
+                    )
+                    mae = evaluator.evaluate(predictions)
+                    
+                    evaluator_r2 = RegressionEvaluator(
+                        labelCol='duration_seconds',
+                        predictionCol='prediction',
+                        metricName='r2'
+                    )
+                    r2 = evaluator_r2.evaluate(predictions)
+                    
+                    # Get feature importances
+                    rf_model_spark = model.stages[-1]
+                    feature_importances = rf_model_spark.featureImportances.toArray()
+                    
+                    # Convert predictions to pandas for visualization
+                    pred_sample = predictions.select('duration_seconds', 'prediction').limit(100).toPandas()
+                    y_test = pred_sample['duration_seconds'].values
+                    y_pred = pred_sample['prediction'].values
             
             col1, col2 = st.columns(2)
             
             with col1:
                 st.metric("Mean Absolute Error", f"{mae:.3f}s")
                 st.metric("R² Score", f"{r2:.4f}")
-                st.info(f"Trained on {len(X_train):,} pit stops")
+                if ml_mode_pit == "Big Data ML":
+                    st.success("✅ Trained using distributed PySpark MLlib")
+                else:
+                    st.info(f"Trained on {len(ml_data):,} pit stops")
             
             with col2:
                 # Feature importance
-                if 'constructor_name' in ml_data.columns:
-                    feature_names = ['Driver', 'Race', 'Team', 'Lap', 'Stop Number']
-                else:
-                    feature_names = ['Driver', 'Race', 'Lap', 'Stop Number']
-                
                 importance_df = pd.DataFrame({
                     'Feature': feature_names,
-                    'Importance': rf_model.feature_importances_
+                    'Importance': feature_importances
                 }).sort_values('Importance', ascending=False)
                 
                 fig_importance = px.bar(

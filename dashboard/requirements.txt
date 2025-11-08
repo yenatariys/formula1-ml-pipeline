@@ -7,9 +7,12 @@ streamlit>=1.25.0
 pandas>=2.1.0
 numpy>=1.26.0
 
-# Machine Learning
+# Machine Learning - Classic
 scikit-learn>=1.3.0
 xgboost>=2.0.0
+
+# Machine Learning - Big Data (optional)
+pyspark>=3.5.0
 
 # Visualisasi
 plotly>=5.18.0
