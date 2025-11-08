@@ -23,9 +23,6 @@ erDiagram
         int win
         float win_rate
         float avg_points
-        int races_so_far
-        int wins_so_far
-        float points_so_far
     }
     DIM_DRIVER {
         int driverId
