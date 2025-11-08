@@ -157,6 +157,7 @@ def load_lap_times() -> pd.DataFrame:
             on='raceId', 
             how='left'
         )
+        lap_times.rename(columns={'name': 'race_name'}, inplace=True)
     
     return lap_times
 
@@ -190,6 +191,8 @@ def load_pit_stops() -> pd.DataFrame:
             on='raceId', 
             how='left'
         )
+        # Rename race name column first
+        pit_stops.rename(columns={'name': 'race_name'}, inplace=True)
     
     # Get constructor info from results
     if not results.empty and not constructors.empty:
@@ -200,7 +203,8 @@ def load_pit_stops() -> pd.DataFrame:
             on='constructorId', 
             how='left'
         )
-        pit_stops.rename(columns={'name_y': 'constructor_name', 'name_x': 'race_name'}, inplace=True)
+        # Rename constructor name column
+        pit_stops.rename(columns={'name': 'constructor_name'}, inplace=True)
     
     return pit_stops
 
