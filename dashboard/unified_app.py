@@ -71,16 +71,28 @@ TF_METRICS_PATH = TF_EVAL_DIR / "tf_driver_win_metrics.json"
 
 # Database connection for Classic ML
 DB_AVAILABLE = False
-if SQLALCHEMY_AVAILABLE:
+engine = None
+
+# Check if psycopg2 is available first
+try:
+    import psycopg2
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+
+if SQLALCHEMY_AVAILABLE and PSYCOPG2_AVAILABLE:
     try:
-        engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1_data")
-        # Test connection
-        with engine.connect() as conn:
-            conn.execute("SELECT 1")
+        # Create engine (connection will be lazy)
+        engine = create_engine(
+            "postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1_data",
+            pool_pre_ping=True,  # Verify connections before using
+            connect_args={"connect_timeout": 3}
+        )
         DB_AVAILABLE = True
-    except Exception as e:
-        st.warning(f"Database not available: {e}")
+    except Exception:
+        # Connection setup failed
         DB_AVAILABLE = False
+        engine = None
 
 
 # ============================================================================
@@ -145,11 +157,12 @@ def get_spark_session():
 @st.cache_data
 def load_results():
     """Load race results from database."""
-    if not DB_AVAILABLE:
+    if not DB_AVAILABLE or engine is None:
         return pd.DataFrame()
     try:
         return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
-    except Exception:
+    except Exception as e:
+        # Silently handle database errors
         return pd.DataFrame()
 
 
@@ -1840,7 +1853,8 @@ def render_classic_overview():
     st.header("🏎️ Formula 1 Race Results & Classic ML")
     
     if not DB_AVAILABLE:
-        st.error("Database connection not available.")
+        st.info("📊 Database connection not available. This feature requires PostgreSQL database running locally.")
+        st.info("💡 You can still use **Lap Time Analysis** and **Pit Stop Strategy** sections which work with CSV data!")
         return
     
     df = load_results()
