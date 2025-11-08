@@ -79,19 +79,18 @@ for feature, importance in zip(X.columns, rf_model.feature_importances_):
 print(f"{'='*70}\n")
 
 # ==================== XGBoost Model with Hyperparameter Tuning ====================
-print("🚀 Training XGBoost Classifier with Hyperparameter Tuning...")
+print("🚀 Training XGBoost Classifier with Hyperparameter Tuning (Small Grid)...")
 
 from sklearn.model_selection import GridSearchCV
 
-# Define focused parameter grid for tuning (optimized for quality and speed)
+# Define SMALL parameter grid for faster local training
 param_grid = {
-    'n_estimators': [200, 300],
-    'max_depth': [7, 9],
-    'learning_rate': [0.05, 0.1],
-    'min_child_weight': [1, 3],
-    'subsample': [0.9],
-    'colsample_bytree': [0.9],
-    'gamma': [0, 0.1]
+    'n_estimators': [100, 200, 300],  # 3 values
+    'max_depth': [5, 7, 9],  # 3 values
+    'learning_rate': [0.05, 0.1, 0.15],  # 3 values
+    'min_child_weight': [1, 3, 5],  # 3 values
+    'subsample': [0.7, 0.85, 1.0],  # 3 values
+    'colsample_bytree': [0.7, 0.85, 1.0]  # 3 values
 }
 
 # Calculate class weight
@@ -103,23 +102,28 @@ xgb_base = XGBClassifier(
     scale_pos_weight=scale_pos_weight,
     eval_metric='logloss',
     tree_method='hist',  # Faster training
-    n_jobs=-1
+    n_jobs=-1,
+    gamma=0.1,  # Fixed value
+    reg_alpha=0.1,  # Fixed value
+    reg_lambda=1.0  # Fixed value
 )
 
-total_combinations = (len(param_grid['n_estimators']) * len(param_grid['max_depth']) * 
-                     len(param_grid['learning_rate']) * len(param_grid['min_child_weight']) * 
-                     len(param_grid['subsample']) * len(param_grid['colsample_bytree']) * 
-                     len(param_grid['gamma']))
+total_combinations = 3**6  # 3^6 = 729 combinations
+total_fits = total_combinations * 3  # Using 3-fold CV for speed
 
-print(f"Starting Grid Search with {total_combinations} combinations (optimized for speed)...")
+print(f"Grid Search Configuration:")
+print(f"   - Total combinations: {total_combinations}")
+print(f"   - Cross-validation folds: 3")
+print(f"   - Total fits: {total_fits}")
+print(f"   - Estimated time: ~5-10 minutes")
 
-# Grid search with cross-validation (using n_jobs=1 for Docker compatibility)
+# Grid search with 3-fold CV (faster than 5-fold)
 grid_search = GridSearchCV(
     estimator=xgb_base,
     param_grid=param_grid,
-    cv=3,  # 3-fold cross-validation
+    cv=3,  # 3-fold CV for speed
     scoring='accuracy',
-    n_jobs=1,  # Sequential processing (more stable in Docker)
+    n_jobs=-1,  # Use all CPU cores for parallel processing
     verbose=2
 )
 

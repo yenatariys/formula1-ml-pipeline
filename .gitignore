@@ -1,0 +1,9 @@
+# Ignore Neo4j persistence directories and other local artefacts
+neo4j/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Local logs
+*.log

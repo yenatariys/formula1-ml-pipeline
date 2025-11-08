@@ -13,15 +13,15 @@ while time.time() < deadline:
     try:
         with engine.connect() as conn:
             exists = conn.execute(text(
-                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema='public' AND table_name='f1_results')"
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema='public' AND table_name='f1_results_transformed')"
             )).scalar()
             if exists:
-                print("f1_results found, continuing.")
+                print("f1_results_transformed found, continuing.")
                 sys.exit(0)
     except Exception as e:
         print("DB not ready:", e)
-    print("Waiting for f1_results table...")
+    print("Waiting for f1_results_transformed table...")
     time.sleep(interval)
 
-print("Timed out waiting for f1_results table.", file=sys.stderr)
+print("Timed out waiting for f1_results_transformed table.", file=sys.stderr)
 sys.exit(1)
