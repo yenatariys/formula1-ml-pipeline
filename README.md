@@ -2,19 +2,20 @@
 
 This repository orchestrates an end-to-end Formula 1 analytics workflow covering ETL, classic machine-learning models, big data pipelines (Spark + TensorFlow), and dual dashboards. The folder layout and numbered runbooks are designed so newcomers can follow the execution order without hunting through the codebase.
 
+
 ## Project layout (execution order)
 
 | Step | Folder | Purpose |
 | --- | --- | --- |
-| 01 | `docs/runbooks/` | Numbered guides that walk through environment setup, ETL, ML pipelines, and dashboards. |
-| 02 | `etl/` | Spark-enabled ETL scripts that hydrate the `f1_results_transformed` table. |
-| 03 | `pipelines/classic/` | Scikit-learn & XGBoost trainers that read/write Postgres tables. |
-| 04 | `pipelines/bigdata/` | Spark feature engineering and TensorFlow training jobs that work on large artefacts. |
-| 05 | `dashboard/` | Streamlit apps (`classic_app.py`, `bigdata_app.py`) served via dedicated Docker services. |
-| — | `ml/` | Legacy container entrypoints (kept for compatibility) now delegating to the classic pipeline code. |
-| — | `docs/reference/` | Longer-form documentation and design notes. |
-| — | `artifacts/` | Output directory mounted by containers for feature stores, models, and evaluation JSONs. |
-| — | `archive/unused/` | Legacy scripts, logs, and guides kept for reference but no longer part of the main flow. |
+| 01 | `docs/runbooks/` | Numbered guides for environment setup, ETL, ML pipelines, and dashboards. |
+| 02 | `etl/` | ETL scripts for transforming and loading race, driver, and results data. |
+| 03 | `pipelines/classic/` | Scikit-learn trainers for classic ML workflows. |
+| 04 | `pipelines/bigdata/` | Spark feature engineering and TensorFlow training for big data ML. |
+| 05 | `dashboard/` | Streamlit apps: `classic_app.py`, `bigdata_app.py`, and `unified_app.py` (Unified Dashboard). |
+| — | `ml/` | Legacy ML entrypoints (delegating to classic pipeline code). |
+| — | `docs/reference/` | Documentation and design notes. |
+| — | `artifacts/` | Output directory for feature stores, models, and evaluation metrics. |
+| — | `archive/unused/` | Legacy scripts and guides for reference. |
 
 ## Quick start
 
@@ -29,68 +30,64 @@ This repository orchestrates an end-to-end Formula 1 analytics workflow covering
 flowchart TB
     subgraph Input ["📥 Data Sources"]
         Raw[("Raw CSV Files<br/>data/*.csv")]
-    end
 
-    subgraph ETL ["🔄 ETL & Processing"]
-        ETLService["ETL Service<br/>etl/etl_pipeline.py"]
-        Postgres[("PostgreSQL<br/>f1_results_transformed")]
-        Graph["Graph Analytics<br/>analytics/graph_analysis.py"]
-    end
+    ## Architecture diagram
 
-    subgraph ML ["🤖 Machine Learning"]
-        SparkJob["Spark Feature Engineering<br/>train_driver_win_mllib.py"]
-        FeatureStore[/"Feature Store<br/>artifacts/feature_store/"\]
-        TFJob["TensorFlow Trainer<br/>train_tensorflow_bigdata.py"]
-    end
+    ```mermaid
+    flowchart TD
+        CSV[Raw CSV Files] --> ETL[ETL Pipeline]
+        ETL --> POSTGRES[(PostgreSQL)]
+        ETL --> SPARK[Spark Cluster]
+        ETL --> NEO4J[(Neo4j)]
 
-    subgraph Outputs ["💾 Artifacts"]
-        Models[/"ML Models<br/>artifacts/models/"\]
-        Eval[/"Evaluation Metrics<br/>artifacts/evaluations/"\]
-        CSVOut[/"Graph Rankings<br/>artifacts/graph_outputs/"\]
-    end
+        %% Feature Engineering
+        POSTGRES --> FE_CLASSIC[Feature Engineering (Classic ML)]
+        SPARK --> FE_BIGDATA[Feature Engineering (Big Data)]
+        FE_CLASSIC --> FEATURE_STORE[(Feature Store)]
+        FE_BIGDATA --> FEATURE_STORE
 
-    subgraph Viz ["📊 Visualization"]
-        DashClassic["Classic Dashboard<br/>localhost:8501"]
-        DashBigData["Big Data Dashboard<br/>localhost:8502"]
-        Neo4j[("Neo4j Graph DB<br/>(optional)")]
-    end
+        %% ML Training
+        FEATURE_STORE --> ML_CLASSIC[Classic ML]
+        FEATURE_STORE --> ML_SPARK[Spark MLlib]
+        FEATURE_STORE --> ML_TF[TensorFlow]
 
-    Raw --> ETLService
-    ETLService --> Postgres
-    ETLService --> Graph
-    
-    Graph -.->|optional| Neo4j
-    Graph --> CSVOut
-    
-    Postgres --> SparkJob
-    SparkJob --> FeatureStore
-    SparkJob --> Models
-    SparkJob --> Eval
-    
-    FeatureStore --> TFJob
-    TFJob --> Models
-    TFJob --> Eval
-    
-    Postgres --> DashClassic
-    FeatureStore --> DashBigData
-    Models --> DashBigData
-    Eval --> DashClassic
-    Eval --> DashBigData
+        %% Dashboards group
+        subgraph DASHBOARDS[Dashboards]
+            DASH_C[Classic Dashboard]
+            DASH_B[BigData Dashboard]
+            DASH_U[Unified Dashboard]
+        end
+        FEATURE_STORE --> DASHBOARDS
+        ML_CLASSIC --> DASHBOARDS
+        ML_SPARK --> DASHBOARDS
+        ML_TF --> DASHBOARDS
+        NEO4J --> DASHBOARDS
 
-    classDef inputStyle fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
-    classDef etlStyle fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef mlStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef outputStyle fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    classDef vizStyle fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    
-    class Raw inputStyle
-    class ETLService,Postgres,Graph etlStyle
-    class SparkJob,FeatureStore,TFJob mlStyle
-    class Models,Eval,CSVOut outputStyle
-    class DashClassic,DashBigData,Neo4j vizStyle
-```
+        %% Admin UIs
+        POSTGRES --> ADMIN[pgAdmin]
+        NEO4J --> NEO4J_UI[Neo4j Browser]
 
-## Docker services overview
+        %% Users
+        USER[Users] -.-> DASHBOARDS
+        USER -.-> ADMIN
+        USER -.-> NEO4J_UI
+
+        classDef storage fill:#E1F5FE,stroke:#0277BD,stroke-width:2px
+        classDef processing fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
+        classDef feature fill:#FFFDE7,stroke:#FBC02D,stroke-width:2px
+        classDef ml fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
+        classDef dashboards fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
+        classDef admin fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px
+        classDef users fill:#EEEEEE,stroke:#616161,stroke-width:2px
+
+        class CSV,POSTGRES,FEATURE_STORE,NEO4J storage
+        class ETL,SPARK processing
+        class FE_CLASSIC,FE_BIGDATA feature
+        class ML_CLASSIC,ML_SPARK,ML_TF ml
+        class DASHBOARDS dashboards
+        class ADMIN,NEO4J_UI admin
+        class USER users
+    ```
 
 | Service | Description |
 | --- | --- |
