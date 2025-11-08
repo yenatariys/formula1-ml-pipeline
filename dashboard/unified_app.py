@@ -870,60 +870,6 @@ def render_classic_overview():
             st.dataframe(pred_filtered[['year', 'round', 'win_rate', 'avg_points', 'actual', 'predicted']].head(20), use_container_width=True)
     else:
         st.info("No ML predictions available yet. Run the ML training service first.")
-    
-    # Model Comparison Section
-    st.divider()
-    st.header("🤖 Model Comparison: Random Forest vs XGBoost")
-    
-    comparison_df = load_model_comparison()
-    
-    if not comparison_df.empty:
-        st.subheader("📊 Overall Model Performance")
-        
-        # Display comparison metrics
-        col1, col2, col3 = st.columns(3)
-        
-        rf_data = comparison_df[comparison_df['model'] == 'RandomForest'].iloc[0]
-        xgb_data = comparison_df[comparison_df['model'] == 'XGBoost'].iloc[0]
-        
-        with col1:
-            st.metric("Random Forest Accuracy", f"{rf_data['accuracy']:.2%}")
-            st.metric("Random Forest ROC-AUC", f"{rf_data['roc_auc']:.3f}")
-        
-        with col2:
-            st.metric("XGBoost Accuracy", f"{xgb_data['accuracy']:.2%}")
-            st.metric("XGBoost ROC-AUC", f"{xgb_data['roc_auc']:.3f}")
-        
-        with col3:
-            best_model = "Random Forest" if rf_data['accuracy'] > xgb_data['accuracy'] else "XGBoost"
-            acc_diff = abs(rf_data['accuracy'] - xgb_data['accuracy']) * 100
-            st.metric("Best Model", best_model)
-            st.metric("Accuracy Difference", f"{acc_diff:.2f}%")
-        
-        # Bar chart comparison
-        st.subheader("📈 Performance Comparison")
-        
-        comp_melted = comparison_df.melt(
-            id_vars=['model'],
-            value_vars=['accuracy', 'roc_auc'],
-            var_name='Metric',
-            value_name='Score'
-        )
-        
-        fig_comp = px.bar(
-            comp_melted,
-            x='Metric',
-            y='Score',
-            color='model',
-            barmode='group',
-            title='Model Performance Comparison',
-            labels={'Score': 'Score', 'Metric': 'Metric', 'model': 'Model'},
-            color_discrete_map={'RandomForest': '#2ecc71', 'XGBoost': '#e74c3c'}
-        )
-        st.plotly_chart(fig_comp, use_container_width=True)
-    else:
-        st.info("No model comparison data available. Run the ML training with train_comparison.py first.")
-
 
 
 # ============================================================================
