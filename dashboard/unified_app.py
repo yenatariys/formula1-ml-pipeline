@@ -156,26 +156,34 @@ def get_spark_session():
 
 @st.cache_data
 def load_results():
-    """Load race results from database or ETL export with auto-fallback."""
-    # Priority 1: Try ETL export (auto-updated after ETL runs)
+    """Load race results with priority: ETL export > Database > Raw CSV > Empty.
+    
+    Returns:
+        tuple: (DataFrame, data_source_type)
+        data_source_type: 'etl' | 'database' | 'csv_raw' | 'empty'
+    """
+    # Priority 1: ETL export (TRANSFORMED data from pipeline)
     etl_data = load_etl_export()
     if not etl_data.empty:
-        return etl_data
+        return etl_data, 'etl'
     
-    # Priority 2: Try database (if available)
+    # Priority 2: Database (TRANSFORMED data from ETL)
     if DB_AVAILABLE and engine is not None:
         try:
-            return pd.read_sql("SELECT * FROM f1_results_transformed", engine)
+            df = pd.read_sql("SELECT * FROM f1_results_transformed", engine)
+            if not df.empty:
+                return df, 'database'
         except Exception:
             pass
     
-    # Priority 3: Fallback to CSV file (always available in repo)
+    # Priority 3: Raw CSV (UNTRANSFORMED - temporary fallback)
     csv_path = BASE_DIR / "data" / "f1_results_joined.csv"
     if csv_path.exists():
-        return pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path)
+        return df, 'csv_raw'
     
-    # Priority 4: Empty DataFrame (if CSV missing)
-    return pd.DataFrame()
+    # Priority 4: Empty DataFrame
+    return pd.DataFrame(), 'empty'
 
 
 def _format_timestamp(path: Path) -> str:
@@ -1890,30 +1898,40 @@ def render_classic_overview():
     """Render classic ML overview with race results."""
     st.header("🏎️ Formula 1 Race Results & Classic ML")
     
-    df = load_results()
+    df, data_source = load_results()
     
     if df.empty:
-        st.info("📊 No data available yet.")
-        st.info("💡 **To enable this section:**")
+        st.error("❌ **No data available**")
+        st.info("💡 **How to get data:**")
         st.code("""
-# Run ETL pipeline:
-docker-compose up postgres
+# Option 1: Run ETL pipeline (RECOMMENDED - gets transformed data)
+docker-compose up -d postgres
 python etl/etl_pipeline.py
 
-# Or use Lap Time & Pit Stop sections (CSV-based)
+# Option 2: Use other dashboard sections
+# - Lap Time Analysis (CSV-based)
+# - Pit Stop Strategy (CSV-based)
         """, language="bash")
         return
     
-    # Show data source
-    etl_data = load_etl_export()
-    csv_path = BASE_DIR / "data" / "f1_results_joined.csv"
-    
-    if not etl_data.empty:
-        st.success("✅ **Using ETL Export Data** - Auto-updated after ETL runs")
-    elif DB_AVAILABLE:
-        st.info("📊 **Using PostgreSQL Database**")
-    elif csv_path.exists():
-        st.info("📁 **Using CSV Data** - Run ETL pipeline to enable advanced features")
+    # Show data source with clear indicators
+    if data_source == 'etl':
+        st.success("✅ **Using ETL Export Data** - Transformed & auto-updated after ETL runs")
+    elif data_source == 'database':
+        st.success("✅ **Using PostgreSQL Database** - Transformed data from ETL pipeline")
+    elif data_source == 'csv_raw':
+        st.warning("⚠️ **Using Raw CSV Data** - This is UNTRANSFORMED data (includes DNF/null positions)")
+        st.info("💡 **Run ETL pipeline to get cleaned & transformed data:**")
+        st.code("""
+# Run ETL to get transformed data:
+docker-compose up -d postgres
+python etl/etl_pipeline.py
+
+# ETL will:
+# - Filter out DNF/DNS (null positions)
+# - Cast data types properly
+# - Export to data/etl_exports/f1_results_latest.csv
+        """, language="bash")
     else:
         st.warning("⚠️ Unknown data source")
     

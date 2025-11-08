@@ -67,6 +67,13 @@ class ETLMetadataTracker:
             "status": status,
             "error_message": error_message,
             "timestamp": datetime.now().isoformat(),
+            "data_type": "transformed",  # NEW: Indicator for transformed data
+            "transformations_applied": [
+                "Filter null positions (DNF/DNS removed)",
+                "Cast year/round/position to int",
+                "Cast points to float",
+                "Spark-based data quality checks"
+            ]
         }
         
         if additional_info:

@@ -1,6 +1,13 @@
 # Ignore Neo4j persistence directories and other local artefacts
 neo4j/
 
+# ETL exports (generated files, not source code)
+data/etl_exports/*.csv
+!data/etl_exports/README.md
+
+# ETL metadata (generated files)
+artifacts/etl_metadata/*.json
+
 # Python bytecode
 __pycache__/
 *.py[cod]
