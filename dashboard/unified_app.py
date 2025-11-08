@@ -118,6 +118,93 @@ def _artefact_status(path: Path) -> str:
     return "✅ Available" if path.exists() else "⚠️ Missing"
 
 
+@st.cache_data(show_spinner=False)
+def load_csv_data(filename: str) -> pd.DataFrame:
+    """Load CSV file from data directory."""
+    csv_path = BASE_DIR / "data" / filename
+    if not csv_path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(csv_path)
+    except Exception as e:
+        st.error(f"Error loading {filename}: {e}")
+        return pd.DataFrame()
+
+
+@st.cache_data(show_spinner=False)
+def load_lap_times() -> pd.DataFrame:
+    """Load and enrich lap times data."""
+    lap_times = load_csv_data("lap_times.csv")
+    if lap_times.empty:
+        return pd.DataFrame()
+    
+    # Load additional data for enrichment
+    drivers = load_csv_data("drivers.csv")
+    races = load_csv_data("races.csv")
+    
+    # Merge with driver and race info
+    if not drivers.empty:
+        lap_times = lap_times.merge(
+            drivers[['driverId', 'surname', 'forename']], 
+            on='driverId', 
+            how='left'
+        )
+        lap_times['driver_name'] = lap_times['forename'] + ' ' + lap_times['surname']
+    
+    if not races.empty:
+        lap_times = lap_times.merge(
+            races[['raceId', 'year', 'name', 'round']], 
+            on='raceId', 
+            how='left'
+        )
+    
+    return lap_times
+
+
+@st.cache_data(show_spinner=False)
+def load_pit_stops() -> pd.DataFrame:
+    """Load and enrich pit stop data."""
+    pit_stops = load_csv_data("pit_stops.csv")
+    if pit_stops.empty:
+        return pd.DataFrame()
+    
+    # Load additional data for enrichment
+    drivers = load_csv_data("drivers.csv")
+    races = load_csv_data("races.csv")
+    constructors = load_csv_data("constructors.csv")
+    results = load_csv_data("results.csv")
+    
+    # Merge with driver info
+    if not drivers.empty:
+        pit_stops = pit_stops.merge(
+            drivers[['driverId', 'surname', 'forename']], 
+            on='driverId', 
+            how='left'
+        )
+        pit_stops['driver_name'] = pit_stops['forename'] + ' ' + pit_stops['surname']
+    
+    # Merge with race info
+    if not races.empty:
+        pit_stops = pit_stops.merge(
+            races[['raceId', 'year', 'name', 'round']], 
+            on='raceId', 
+            how='left'
+        )
+    
+    # Get constructor info from results
+    if not results.empty and not constructors.empty:
+        driver_constructors = results[['raceId', 'driverId', 'constructorId']].drop_duplicates()
+        pit_stops = pit_stops.merge(driver_constructors, on=['raceId', 'driverId'], how='left')
+        pit_stops = pit_stops.merge(
+            constructors[['constructorId', 'name']], 
+            on='constructorId', 
+            how='left'
+        )
+        pit_stops.rename(columns={'name_y': 'constructor_name', 'name_x': 'race_name'}, inplace=True)
+    
+    return pit_stops
+
+
 @st.cache_data(ttl=60)
 def load_predictions():
     """Load ML predictions from database."""
@@ -432,6 +519,312 @@ def render_model_comparison():
         # Detailed metrics table
         st.subheader("Detailed Metrics")
         st.dataframe(df_comparison, use_container_width=True)
+
+
+# ============================================================================
+# CSV-Based Analysis Components
+# ============================================================================
+
+def render_lap_time_analysis():
+    """Render lap time analysis from CSV data."""
+    st.header("⏱️ Lap Time Analysis")
+    
+    lap_times = load_lap_times()
+    
+    if lap_times.empty:
+        st.warning("Lap times data not available.")
+        return
+    
+    st.write(f"📊 Loaded {len(lap_times):,} lap time records")
+    
+    # Year filter
+    available_years = sorted(lap_times['year'].dropna().unique(), reverse=True)
+    year = st.selectbox("Select Season", available_years, key="lap_year")
+    
+    year_data = lap_times[lap_times['year'] == year]
+    
+    # Race filter
+    available_races = year_data[['round', 'race_name']].drop_duplicates().sort_values('round')
+    race_names = [f"Round {row['round']}: {row['race_name']}" for _, row in available_races.iterrows()]
+    
+    if not race_names:
+        st.info(f"No race data available for {year}")
+        return
+    
+    selected_race_display = st.selectbox("Select Race", race_names, key="lap_race")
+    selected_round = int(selected_race_display.split(':')[0].replace('Round ', ''))
+    
+    race_data = year_data[year_data['round'] == selected_round]
+    
+    if race_data.empty:
+        st.info("No lap time data for selected race")
+        return
+    
+    st.subheader(f"📈 {selected_race_display}")
+    
+    # Quick stats
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Laps Recorded", f"{len(race_data):,}")
+    
+    with col2:
+        fastest_lap_ms = race_data['milliseconds'].min()
+        fastest_lap_sec = fastest_lap_ms / 1000
+        st.metric("Fastest Lap", f"{fastest_lap_sec:.3f}s")
+    
+    with col3:
+        unique_drivers = race_data['driver_name'].nunique()
+        st.metric("Drivers", unique_drivers)
+    
+    with col4:
+        max_lap = race_data['lap'].max()
+        st.metric("Race Distance", f"{max_lap} laps")
+    
+    # Lap time progression
+    st.subheader("🏁 Lap Time Progression")
+    
+    # Get top 10 drivers by average lap time
+    avg_lap_times = race_data.groupby('driver_name')['milliseconds'].mean().nsmallest(10)
+    top_drivers = avg_lap_times.index.tolist()
+    
+    selected_drivers = st.multiselect(
+        "Select Drivers to Compare",
+        options=sorted(race_data['driver_name'].dropna().unique()),
+        default=top_drivers[:5] if len(top_drivers) >= 5 else top_drivers,
+        key="lap_drivers"
+    )
+    
+    if selected_drivers:
+        driver_data = race_data[race_data['driver_name'].isin(selected_drivers)]
+        driver_data['lap_time_seconds'] = driver_data['milliseconds'] / 1000
+        
+        fig_progression = px.line(
+            driver_data,
+            x='lap',
+            y='lap_time_seconds',
+            color='driver_name',
+            title='Lap Time Progression',
+            labels={'lap': 'Lap Number', 'lap_time_seconds': 'Lap Time (seconds)', 'driver_name': 'Driver'},
+            markers=True
+        )
+        fig_progression.update_layout(hovermode='x unified')
+        st.plotly_chart(fig_progression, use_container_width=True)
+    
+    # Driver performance comparison
+    st.subheader("📊 Driver Performance Summary")
+    
+    driver_stats = race_data.groupby('driver_name').agg({
+        'milliseconds': ['mean', 'min', 'max', 'std'],
+        'lap': 'count'
+    }).reset_index()
+    
+    driver_stats.columns = ['Driver', 'Avg Lap Time (ms)', 'Fastest Lap (ms)', 'Slowest Lap (ms)', 'Std Dev', 'Laps Completed']
+    driver_stats = driver_stats.sort_values('Avg Lap Time (ms)')
+    
+    # Convert to seconds for better readability
+    driver_stats['Avg Lap Time (s)'] = driver_stats['Avg Lap Time (ms)'] / 1000
+    driver_stats['Fastest Lap (s)'] = driver_stats['Fastest Lap (ms)'] / 1000
+    
+    st.dataframe(
+        driver_stats[['Driver', 'Laps Completed', 'Avg Lap Time (s)', 'Fastest Lap (s)', 'Std Dev']].head(15),
+        use_container_width=True
+    )
+    
+    # Fastest lap distribution
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Fastest laps by driver
+        fastest_by_driver = race_data.groupby('driver_name')['milliseconds'].min().nsmallest(10).reset_index()
+        fastest_by_driver['seconds'] = fastest_by_driver['milliseconds'] / 1000
+        
+        fig_fastest = px.bar(
+            fastest_by_driver,
+            x='driver_name',
+            y='seconds',
+            title='Top 10 Fastest Laps',
+            labels={'driver_name': 'Driver', 'seconds': 'Lap Time (seconds)'},
+            color='seconds',
+            color_continuous_scale='Viridis_r'
+        )
+        st.plotly_chart(fig_fastest, use_container_width=True)
+    
+    with col2:
+        # Lap time consistency (std dev)
+        consistency = race_data.groupby('driver_name')['milliseconds'].std().nsmallest(10).reset_index()
+        consistency.columns = ['Driver', 'Std Dev (ms)']
+        
+        fig_consistency = px.bar(
+            consistency,
+            x='Driver',
+            y='Std Dev (ms)',
+            title='Top 10 Most Consistent Drivers',
+            labels={'Driver': 'Driver', 'Std Dev (ms)': 'Standard Deviation (ms)'},
+            color='Std Dev (ms)',
+            color_continuous_scale='RdYlGn_r'
+        )
+        st.plotly_chart(fig_consistency, use_container_width=True)
+
+
+def render_pit_stop_analysis():
+    """Render pit stop strategy analysis from CSV data."""
+    st.header("⛽ Pit Stop Strategy Analysis")
+    
+    pit_stops = load_pit_stops()
+    
+    if pit_stops.empty:
+        st.warning("Pit stop data not available.")
+        return
+    
+    st.write(f"📊 Loaded {len(pit_stops):,} pit stop records")
+    
+    # Year filter
+    available_years = sorted(pit_stops['year'].dropna().unique(), reverse=True)
+    year = st.selectbox("Select Season", available_years, key="pit_year")
+    
+    year_data = pit_stops[pit_stops['year'] == year]
+    
+    # Overall season statistics
+    st.subheader(f"🏁 {year} Season Pit Stop Statistics")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_stops = len(year_data)
+        st.metric("Total Pit Stops", f"{total_stops:,}")
+    
+    with col2:
+        avg_duration = year_data['milliseconds'].mean() / 1000
+        st.metric("Avg Stop Duration", f"{avg_duration:.3f}s")
+    
+    with col3:
+        fastest_stop = year_data['milliseconds'].min() / 1000
+        st.metric("Fastest Stop", f"{fastest_stop:.3f}s")
+    
+    with col4:
+        slowest_stop = year_data['milliseconds'].max() / 1000
+        st.metric("Slowest Stop", f"{slowest_stop:.3f}s")
+    
+    # Team performance
+    st.subheader("🏎️ Pit Crew Performance by Team")
+    
+    if 'constructor_name' in year_data.columns:
+        team_stats = year_data.groupby('constructor_name').agg({
+            'milliseconds': ['mean', 'min', 'count'],
+            'stop': 'max'
+        }).reset_index()
+        
+        team_stats.columns = ['Team', 'Avg Duration (ms)', 'Fastest Stop (ms)', 'Total Stops', 'Max Stops per Race']
+        team_stats['Avg Duration (s)'] = team_stats['Avg Duration (ms)'] / 1000
+        team_stats['Fastest Stop (s)'] = team_stats['Fastest Stop (ms)'] / 1000
+        team_stats = team_stats.sort_values('Avg Duration (ms)')
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            fig_team_avg = px.bar(
+                team_stats.head(10),
+                x='Team',
+                y='Avg Duration (s)',
+                title='Top 10 Teams by Average Pit Stop Duration',
+                color='Avg Duration (s)',
+                color_continuous_scale='RdYlGn_r',
+                labels={'Avg Duration (s)': 'Avg Duration (seconds)'}
+            )
+            st.plotly_chart(fig_team_avg, use_container_width=True)
+        
+        with col2:
+            fig_team_count = px.bar(
+                team_stats.sort_values('Total Stops', ascending=False).head(10),
+                x='Team',
+                y='Total Stops',
+                title='Top 10 Teams by Total Pit Stops',
+                color='Total Stops',
+                color_continuous_scale='Blues'
+            )
+            st.plotly_chart(fig_team_count, use_container_width=True)
+        
+        st.dataframe(
+            team_stats[['Team', 'Total Stops', 'Avg Duration (s)', 'Fastest Stop (s)']],
+            use_container_width=True
+        )
+    
+    # Race-specific analysis
+    st.subheader("📍 Race-Specific Analysis")
+    
+    available_races = year_data[['round', 'race_name']].drop_duplicates().sort_values('round')
+    race_names = [f"Round {row['round']}: {row['race_name']}" for _, row in available_races.iterrows()]
+    
+    if race_names:
+        selected_race_display = st.selectbox("Select Race", race_names, key="pit_race")
+        selected_round = int(selected_race_display.split(':')[0].replace('Round ', ''))
+        
+        race_data = year_data[year_data['round'] == selected_round]
+        
+        if not race_data.empty:
+            st.write(f"**{selected_race_display}**")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Total Stops This Race", len(race_data))
+                st.metric("Average Duration", f"{race_data['milliseconds'].mean() / 1000:.3f}s")
+            
+            with col2:
+                st.metric("Fastest Stop", f"{race_data['milliseconds'].min() / 1000:.3f}s")
+                fastest_team = race_data.loc[race_data['milliseconds'].idxmin(), 'constructor_name'] if 'constructor_name' in race_data.columns else "N/A"
+                st.metric("Fastest Team", fastest_team)
+            
+            # Pit stop timeline
+            race_data_sorted = race_data.sort_values('lap')
+            race_data_sorted['duration_s'] = race_data_sorted['milliseconds'] / 1000
+            
+            fig_timeline = px.scatter(
+                race_data_sorted,
+                x='lap',
+                y='duration_s',
+                color='constructor_name' if 'constructor_name' in race_data_sorted.columns else 'driver_name',
+                size='duration_s',
+                title='Pit Stop Timeline',
+                labels={'lap': 'Lap Number', 'duration_s': 'Duration (seconds)'},
+                hover_data=['driver_name', 'stop']
+            )
+            st.plotly_chart(fig_timeline, use_container_width=True)
+            
+            # Driver pit stop details
+            driver_pit_stats = race_data.groupby('driver_name').agg({
+                'stop': 'max',
+                'milliseconds': 'mean',
+                'lap': lambda x: ', '.join(map(str, sorted(x)))
+            }).reset_index()
+            driver_pit_stats.columns = ['Driver', 'Number of Stops', 'Avg Duration (ms)', 'Pit Stop Laps']
+            driver_pit_stats['Avg Duration (s)'] = driver_pit_stats['Avg Duration (ms)'] / 1000
+            
+            st.dataframe(
+                driver_pit_stats[['Driver', 'Number of Stops', 'Avg Duration (s)', 'Pit Stop Laps']],
+                use_container_width=True
+            )
+    
+    # Historical trend
+    st.subheader("📈 Pit Stop Evolution Over Season")
+    
+    race_avg = year_data.groupby('round').agg({
+        'milliseconds': 'mean',
+        'race_name': 'first'
+    }).reset_index()
+    race_avg['avg_duration_s'] = race_avg['milliseconds'] / 1000
+    
+    fig_evolution = px.line(
+        race_avg,
+        x='round',
+        y='avg_duration_s',
+        title=f'Average Pit Stop Duration Throughout {year} Season',
+        labels={'round': 'Race Round', 'avg_duration_s': 'Avg Duration (seconds)'},
+        markers=True,
+        hover_data=['race_name']
+    )
+    st.plotly_chart(fig_evolution, use_container_width=True)
 
 
 # ============================================================================
@@ -891,7 +1284,9 @@ def main():
             "⚡ Spark MLlib Model",
             "🧠 TensorFlow Model",
             "📦 Feature Store",
-            "🔄 Model Comparison"
+            "🔄 Model Comparison",
+            "⏱️ Lap Time Analysis",
+            "⛽ Pit Stop Strategy"
         ]
     )
     
@@ -938,6 +1333,18 @@ def main():
         - Side-by-side model performance
         - ROC-AUC comparison
         - Best model identification
+        
+        ### ⏱️ Lap Time Analysis
+        - Lap-by-lap performance tracking
+        - Driver consistency analysis
+        - Fastest lap comparisons
+        - Race pace visualization
+        
+        ### ⛽ Pit Stop Strategy
+        - Pit crew performance analysis
+        - Team strategy comparison
+        - Stop duration trends
+        - Race-specific pit stop patterns
         """)
         
         st.markdown("---")
@@ -991,6 +1398,12 @@ def main():
     
     elif page == "🔄 Model Comparison":
         render_model_comparison()
+    
+    elif page == "⏱️ Lap Time Analysis":
+        render_lap_time_analysis()
+    
+    elif page == "⛽ Pit Stop Strategy":
+        render_pit_stop_analysis()
 
 
 # Always run main() - compatible with both direct execution and imports
