@@ -1,0 +1,371 @@
+{
+  "tables": {
+    "drivers.csv": {
+      "columns": [
+        "driverId",
+        "driverRef",
+        "number",
+        "code",
+        "forename",
+        "surname",
+        "dob",
+        "nationality",
+        "url"
+      ],
+      "row_count": 861,
+      "file_size_kb": 93.0,
+      "category": "Core Entities"
+    },
+    "constructors.csv": {
+      "columns": [
+        "constructorId",
+        "constructorRef",
+        "name",
+        "nationality",
+        "url"
+      ],
+      "row_count": 212,
+      "file_size_kb": 17.28,
+      "category": "Core Entities"
+    },
+    "circuits.csv": {
+      "columns": [
+        "circuitId",
+        "circuitRef",
+        "name",
+        "location",
+        "country",
+        "lat",
+        "lng",
+        "alt",
+        "url"
+      ],
+      "row_count": 77,
+      "file_size_kb": 9.94,
+      "category": "Core Entities"
+    },
+    "races.csv": {
+      "columns": [
+        "raceId",
+        "year",
+        "round",
+        "circuitId",
+        "name",
+        "date",
+        "time",
+        "url",
+        "fp1_date",
+        "fp1_time",
+        "fp2_date",
+        "fp2_time",
+        "fp3_date",
+        "fp3_time",
+        "quali_date",
+        "quali_time",
+        "sprint_date",
+        "sprint_time"
+      ],
+      "row_count": 1125,
+      "file_size_kb": 161.59,
+      "category": "Core Entities"
+    },
+    "seasons.csv": {
+      "columns": [
+        "year",
+        "url"
+      ],
+      "row_count": 75,
+      "file_size_kb": 4.56,
+      "category": "Core Entities"
+    },
+    "results.csv": {
+      "columns": [
+        "resultId",
+        "raceId",
+        "driverId",
+        "constructorId",
+        "number",
+        "grid",
+        "position",
+        "positionText",
+        "positionOrder",
+        "points",
+        "laps",
+        "time",
+        "milliseconds",
+        "fastestLap",
+        "rank",
+        "fastestLapTime",
+        "fastestLapSpeed",
+        "statusId"
+      ],
+      "row_count": 26759,
+      "file_size_kb": 1707.74,
+      "category": "Race Results"
+    },
+    "sprint_results.csv": {
+      "columns": [
+        "resultId",
+        "raceId",
+        "driverId",
+        "constructorId",
+        "number",
+        "grid",
+        "position",
+        "positionText",
+        "positionOrder",
+        "points",
+        "laps",
+        "time",
+        "milliseconds",
+        "fastestLap",
+        "fastestLapTime",
+        "statusId"
+      ],
+      "row_count": 360,
+      "file_size_kb": 24.5,
+      "category": "Race Results"
+    },
+    "qualifying.csv": {
+      "columns": [
+        "qualifyId",
+        "raceId",
+        "driverId",
+        "constructorId",
+        "number",
+        "position",
+        "q1",
+        "q2",
+        "q3"
+      ],
+      "row_count": 10494,
+      "file_size_kb": 464.58,
+      "category": "Race Results"
+    },
+    "driver_standings.csv": {
+      "columns": [
+        "driverStandingsId",
+        "raceId",
+        "driverId",
+        "points",
+        "position",
+        "positionText",
+        "wins"
+      ],
+      "row_count": 34863,
+      "file_size_kb": 897.1,
+      "category": "Standings"
+    },
+    "constructor_standings.csv": {
+      "columns": [
+        "constructorStandingsId",
+        "raceId",
+        "constructorId",
+        "points",
+        "position",
+        "positionText",
+        "wins"
+      ],
+      "row_count": 13391,
+      "file_size_kb": 322.85,
+      "category": "Standings"
+    },
+    "lap_times.csv": {
+      "columns": [
+        "raceId",
+        "driverId",
+        "lap",
+        "position",
+        "time",
+        "milliseconds"
+      ],
+      "row_count": 589081,
+      "file_size_kb": 17784.65,
+      "category": "Race Details"
+    },
+    "pit_stops.csv": {
+      "columns": [
+        "raceId",
+        "driverId",
+        "stop",
+        "lap",
+        "time",
+        "duration",
+        "milliseconds"
+      ],
+      "row_count": 11371,
+      "file_size_kb": 444.42,
+      "category": "Race Details"
+    },
+    "status.csv": {
+      "columns": [
+        "statusId",
+        "status"
+      ],
+      "row_count": 139,
+      "file_size_kb": 2.22,
+      "category": "Reference"
+    },
+    "constructor_results.csv": {
+      "columns": [
+        "constructorResultsId",
+        "raceId",
+        "constructorId",
+        "points",
+        "status"
+      ],
+      "row_count": 12625,
+      "file_size_kb": 226.55,
+      "category": "Reference"
+    },
+    "f1_results_joined.csv": {
+      "columns": [
+        "raceId",
+        "year",
+        "round",
+        "name",
+        "driverId",
+        "surname",
+        "position",
+        "points"
+      ],
+      "row_count": 26759,
+      "file_size_kb": 1325.86,
+      "category": "Transformed"
+    }
+  },
+  "relationships": [
+    {
+      "from": "drivers.csv",
+      "to": "results.csv",
+      "foreign_key": "driverId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "drivers.csv",
+      "to": "qualifying.csv",
+      "foreign_key": "driverId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "drivers.csv",
+      "to": "driver_standings.csv",
+      "foreign_key": "driverId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "drivers.csv",
+      "to": "lap_times.csv",
+      "foreign_key": "driverId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "drivers.csv",
+      "to": "pit_stops.csv",
+      "foreign_key": "driverId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "drivers.csv",
+      "to": "sprint_results.csv",
+      "foreign_key": "driverId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "constructors.csv",
+      "to": "results.csv",
+      "foreign_key": "constructorId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "constructors.csv",
+      "to": "qualifying.csv",
+      "foreign_key": "constructorId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "constructors.csv",
+      "to": "constructor_results.csv",
+      "foreign_key": "constructorId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "constructors.csv",
+      "to": "constructor_standings.csv",
+      "foreign_key": "constructorId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "constructors.csv",
+      "to": "sprint_results.csv",
+      "foreign_key": "constructorId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "circuits.csv",
+      "to": "races.csv",
+      "foreign_key": "circuitId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "results.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "qualifying.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "constructor_results.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "constructor_standings.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "driver_standings.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "lap_times.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "pit_stops.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "races.csv",
+      "to": "sprint_results.csv",
+      "foreign_key": "raceId",
+      "type": "foreign_key"
+    },
+    {
+      "from": "seasons.csv",
+      "to": "races.csv",
+      "foreign_key": "year",
+      "type": "foreign_key"
+    },
+    {
+      "from": "status.csv",
+      "to": "results.csv",
+      "foreign_key": "statusId",
+      "type": "foreign_key"
+    }
+  ]
+}

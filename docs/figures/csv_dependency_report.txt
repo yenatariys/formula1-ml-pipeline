@@ -1,0 +1,77 @@
+================================================================================
+FORMULA 1 ETL CSV RELATIONSHIP ANALYSIS REPORT
+================================================================================
+
+OVERVIEW
+--------------------------------------------------------------------------------
+Total CSV files: 15
+Total relationships: 22
+Total data size: 23486.85 KB
+Total records: 728,192
+
+MOST REFERENCED TABLES (Core Tables)
+--------------------------------------------------------------------------------
+  results.csv                    - Referenced by 4 other tables
+    Rows: 26,759, Size: 1707.74 KB
+  sprint_results.csv             - Referenced by 3 other tables
+    Rows: 360, Size: 24.50 KB
+  qualifying.csv                 - Referenced by 3 other tables
+    Rows: 10,494, Size: 464.58 KB
+  races.csv                      - Referenced by 2 other tables
+    Rows: 1,125, Size: 161.59 KB
+  driver_standings.csv           - Referenced by 2 other tables
+    Rows: 34,863, Size: 897.10 KB
+
+MOST DEPENDENT TABLES (Complex Joins)
+--------------------------------------------------------------------------------
+  races.csv                      - Depends on 8 other tables
+    Dependencies: circuits.csv, seasons.csv
+  drivers.csv                    - Depends on 6 other tables
+  constructors.csv               - Depends on 5 other tables
+  circuits.csv                   - Depends on 1 other tables
+  seasons.csv                    - Depends on 1 other tables
+
+TABLES BY CATEGORY
+--------------------------------------------------------------------------------
+
+Core Entities:
+  drivers.csv                    | Rows:      861 | Columns:   9 | Size:    93.00 KB
+  constructors.csv               | Rows:      212 | Columns:   5 | Size:    17.28 KB
+  circuits.csv                   | Rows:       77 | Columns:   9 | Size:     9.94 KB
+  races.csv                      | Rows:    1,125 | Columns:  18 | Size:   161.59 KB
+  seasons.csv                    | Rows:       75 | Columns:   2 | Size:     4.56 KB
+
+Race Results:
+  results.csv                    | Rows:   26,759 | Columns:  18 | Size:  1707.74 KB
+  sprint_results.csv             | Rows:      360 | Columns:  16 | Size:    24.50 KB
+  qualifying.csv                 | Rows:   10,494 | Columns:   9 | Size:   464.58 KB
+
+Standings:
+  driver_standings.csv           | Rows:   34,863 | Columns:   7 | Size:   897.10 KB
+  constructor_standings.csv      | Rows:   13,391 | Columns:   7 | Size:   322.85 KB
+
+Race Details:
+  lap_times.csv                  | Rows:  589,081 | Columns:   6 | Size: 17784.65 KB
+  pit_stops.csv                  | Rows:   11,371 | Columns:   7 | Size:   444.42 KB
+
+Reference:
+  status.csv                     | Rows:      139 | Columns:   2 | Size:     2.22 KB
+  constructor_results.csv        | Rows:   12,625 | Columns:   5 | Size:   226.55 KB
+
+Transformed:
+  f1_results_joined.csv          | Rows:   26,759 | Columns:   8 | Size:  1325.86 KB
+
+KEY TABLE COLUMN DETAILS
+--------------------------------------------------------------------------------
+
+results.csv:
+  Columns (18): resultId, raceId, driverId, constructorId, number, grid, position, positionText, positionOrder, points, laps, time, milliseconds, fastestLap, rank, fastestLapTime, fastestLapSpeed, statusId
+
+races.csv:
+  Columns (18): raceId, year, round, circuitId, name, date, time, url, fp1_date, fp1_time, fp2_date, fp2_time, fp3_date, fp3_time, quali_date, quali_time, sprint_date, sprint_time
+
+drivers.csv:
+  Columns (9): driverId, driverRef, number, code, forename, surname, dob, nationality, url
+
+constructors.csv:
+  Columns (5): constructorId, constructorRef, name, nationality, url
