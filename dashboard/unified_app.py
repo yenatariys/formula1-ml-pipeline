@@ -17,7 +17,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score, silhouette_score
 import numpy as np
-from sqlalchemy import create_engine
+
+# Optional imports for database connection
+try:
+    from sqlalchemy import create_engine
+    SQLALCHEMY_AVAILABLE = True
+except ImportError:
+    SQLALCHEMY_AVAILABLE = False
 
 # Try to import PySpark for big data ML
 try:
@@ -64,11 +70,17 @@ TF_HISTORY_PATH = TF_EVAL_DIR / "tf_driver_win_history.json"
 TF_METRICS_PATH = TF_EVAL_DIR / "tf_driver_win_metrics.json"
 
 # Database connection for Classic ML
-try:
-    engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1_data")
-    DB_AVAILABLE = True
-except Exception:
-    DB_AVAILABLE = False
+DB_AVAILABLE = False
+if SQLALCHEMY_AVAILABLE:
+    try:
+        engine = create_engine("postgresql+psycopg2://admin:admin123@f1_postgres:5432/f1_data")
+        # Test connection
+        with engine.connect() as conn:
+            conn.execute("SELECT 1")
+        DB_AVAILABLE = True
+    except Exception as e:
+        st.warning(f"Database not available: {e}")
+        DB_AVAILABLE = False
 
 
 # ============================================================================
