@@ -29,54 +29,61 @@ flowchart TD
     NEO4J --> NEO4J_UI[Neo4j Browser]
     
     USER[Users] -.-> DASH_C
-    USER -.-> DASH_B
-    USER -.-> ADMIN
-    USER -.-> NEO4J_UI
+    ```mermaid
+    flowchart TD
+      CSV[Raw CSV Files] --> ETL[ETL Pipeline]
+      ETL --> POSTGRES[(PostgreSQL)]
+      ETL --> SPARK[Spark Cluster]
+      ETL --> NEO4J[(Neo4j)]
 
-    classDef storage fill:#E1F5FE,stroke:#0277BD,stroke-width:2px
-    classDef processing fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    classDef ml fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
-    classDef viz fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
-    
-    class CSV,POSTGRES,ARTIFACTS,NEO4J storage
-    class ETL,SPARK processing
-    class ML_CLASSIC,ML_SPARK,ML_TF ml
-    class DASH_C,DASH_B,ADMIN,NEO4J_UI,USER viz
-```
+      %% Feature Engineering
+      POSTGRES --> FE_CLASSIC[Feature Engineering (Classic ML)]
+      SPARK --> FE_BIGDATA[Feature Engineering (Big Data)]
+      FE_CLASSIC --> FEATURE_STORE[(Feature Store)]
+      FE_BIGDATA --> FEATURE_STORE
 
-### Exporting the Diagram as an Image
+      %% ML Training
+      FEATURE_STORE --> ML_CLASSIC[Classic ML]
+      FEATURE_STORE --> ML_SPARK[Spark MLlib]
+      FEATURE_STORE --> ML_TF[TensorFlow]
 
-If you need a PNG/SVG version of the diagram, install the Mermaid CLI and render the markdown file directly:
+      %% Dashboards group
+      subgraph DASHBOARDS[Dashboards]
+        DASH_C[Classic Dashboard]
+        DASH_B[BigData Dashboard]
+        DASH_U[Unified Dashboard]
+      end
+      FEATURE_STORE --> DASHBOARDS
+      ML_CLASSIC --> DASHBOARDS
+      ML_SPARK --> DASHBOARDS
+      ML_TF --> DASHBOARDS
+      NEO4J --> DASHBOARDS
 
-```powershell
-npm install -g @mermaid-js/mermaid-cli
-  mmdc -i docs/infrastructure_architecture.md -o docs/figures/infrastructure.png
-  ```
+      %% Admin UIs
+      POSTGRES --> ADMIN[pgAdmin]
+      NEO4J --> NEO4J_UI[Neo4j Browser]
 
-  > The command renders the first Mermaid block in the file. Adjust the output path or format (`.svg`) as needed.
+      %% Users
+      USER[Users] -.-> DASHBOARDS
+      USER -.-> ADMIN
+      USER -.-> NEO4J_UI
 
-## Component Details
+      classDef storage fill:#E1F5FE,stroke:#0277BD,stroke-width:2px
+      classDef processing fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
+      classDef feature fill:#FFFDE7,stroke:#FBC02D,stroke-width:2px
+      classDef ml fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
+      classDef dashboards fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
+      classDef admin fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px
+      classDef users fill:#EEEEEE,stroke:#616161,stroke-width:2px
 
-### Data Storage Layer
-
-#### PostgreSQL Database
-- **Container**: `f1_postgres` (postgres:16)
-- **Port**: 5432
-- **Credentials**: 
-  - User: `admin`
-  - Password: `admin123`
-  - Database: `f1_data`
-- **Purpose**: Primary relational database for structured F1 data
-- **Data**: Race results, drivers, constructors, circuits, standings
-- **Initialization**: Auto-creates schema via `db/init.sql`
-- **Health Check**: `pg_isready` with 10 retries
-
-#### Neo4j Graph Database
-- **Container**: `f1_neo4j` (neo4j:5.22)
-- **Ports**: 
-  - HTTP: 7474 (Browser)
-  - Bolt: 7687 (Driver Protocol)
-- **Credentials**: `neo4j/neo4j123`
+      class CSV,POSTGRES,FEATURE_STORE,NEO4J storage
+      class ETL,SPARK processing
+      class FE_CLASSIC,FE_BIGDATA feature
+      class ML_CLASSIC,ML_SPARK,ML_TF ml
+      class DASHBOARDS dashboards
+      class ADMIN,NEO4J_UI admin
+      class USER users
+    ```
 - **Purpose**: Graph analytics for driver/constructor/circuit relationships
 - **Volumes**: 
   - `./neo4j/data:/data` (graph database)
