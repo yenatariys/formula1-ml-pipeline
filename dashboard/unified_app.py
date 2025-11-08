@@ -2017,7 +2017,8 @@ python etl/etl_pipeline.py
                 st.plotly_chart(fig_podium, use_container_width=True)
             
             with col2:
-                # Average finishing position by driver
+                # Ensure 'position' is numeric before aggregation
+                filtered["position"] = pd.to_numeric(filtered["position"], errors="coerce")
                 avg_pos = filtered.groupby("surname")["position"].mean().reset_index()
                 avg_pos.columns = ["Driver", "Avg Position"]
                 avg_pos = avg_pos.sort_values("Avg Position").head(10)
