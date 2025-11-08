@@ -412,10 +412,13 @@ def render_classic_overview():
     
     # Year filter
     year = st.selectbox("Select Season", sorted(df["year"].unique(), reverse=True))
-    filtered = df[df["year"] == year]
-    
+    filtered = df[df["year"] == year].copy()
+
+    # Ensure 'position' is numeric for aggregation
+    filtered["position"] = pd.to_numeric(filtered["position"], errors="coerce")
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         # Wins by driver (position 1)
         winners = filtered[filtered["position"] == 1].groupby("surname")["raceId"].count().reset_index()
@@ -429,7 +432,7 @@ def render_classic_overview():
             color_continuous_scale="Reds"
         )
         st.plotly_chart(fig1, use_container_width=True)
-    
+
     with col2:
         # Points distribution
         points_by_driver = (
@@ -447,7 +450,7 @@ def render_classic_overview():
             title=f"Top 10 Drivers by Points ({year})"
         )
         st.plotly_chart(fig2, use_container_width=True)
-    
+
     # Detailed results table
     st.subheader(f"Detailed Results - {year}")
     display_cols = ["round", "name", "surname", "position", "points", "grid", "laps", "statusName"]
