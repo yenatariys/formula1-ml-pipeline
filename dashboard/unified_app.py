@@ -11,6 +11,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score, silhouette_score
+import numpy as np
 from sqlalchemy import create_engine
 
 # ============================================================================
@@ -669,6 +675,217 @@ def render_lap_time_analysis():
             color_continuous_scale='RdYlGn_r'
         )
         st.plotly_chart(fig_consistency, use_container_width=True)
+    
+    # ========================================================================
+    # ML ANALYSIS SECTION
+    # ========================================================================
+    st.markdown("---")
+    st.header("🤖 Machine Learning Analysis")
+    
+    ml_tab1, ml_tab2, ml_tab3 = st.tabs([
+        "🎯 Lap Time Prediction", 
+        "👥 Driver Clustering", 
+        "⚠️ Anomaly Detection"
+    ])
+    
+    with ml_tab1:
+        st.subheader("Lap Time Prediction Model")
+        
+        # Prepare data for prediction
+        ml_data = year_data[['driver_name', 'race_name', 'lap', 'position', 'milliseconds']].copy()
+        ml_data = ml_data.dropna()
+        
+        if len(ml_data) > 100:
+            # Create features
+            ml_data['driver_encoded'] = pd.factorize(ml_data['driver_name'])[0]
+            ml_data['race_encoded'] = pd.factorize(ml_data['race_name'])[0]
+            ml_data['lap_time_seconds'] = ml_data['milliseconds'] / 1000
+            
+            X = ml_data[['driver_encoded', 'race_encoded', 'lap', 'position']]
+            y = ml_data['lap_time_seconds']
+            
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            
+            with st.spinner("Training Random Forest model..."):
+                rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+                rf_model.fit(X_train, y_train)
+                y_pred = rf_model.predict(X_test)
+                
+                mae = mean_absolute_error(y_test, y_pred)
+                r2 = r2_score(y_test, y_pred)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Mean Absolute Error", f"{mae:.3f}s")
+                st.metric("R² Score", f"{r2:.4f}")
+            
+            with col2:
+                # Feature importance
+                feature_names = ['Driver', 'Race', 'Lap Number', 'Position']
+                importance_df = pd.DataFrame({
+                    'Feature': feature_names,
+                    'Importance': rf_model.feature_importances_
+                }).sort_values('Importance', ascending=False)
+                
+                fig_importance = px.bar(
+                    importance_df,
+                    x='Importance',
+                    y='Feature',
+                    orientation='h',
+                    title='Feature Importance',
+                    color='Importance',
+                    color_continuous_scale='Blues'
+                )
+                st.plotly_chart(fig_importance, use_container_width=True)
+            
+            # Prediction vs Actual
+            comparison_df = pd.DataFrame({
+                'Actual': y_test.values[:100],
+                'Predicted': y_pred[:100]
+            })
+            
+            fig_pred = px.scatter(
+                comparison_df,
+                x='Actual',
+                y='Predicted',
+                title='Predicted vs Actual Lap Times (Sample)',
+                labels={'Actual': 'Actual Lap Time (s)', 'Predicted': 'Predicted Lap Time (s)'}
+            )
+            fig_pred.add_trace(go.Scatter(
+                x=[comparison_df['Actual'].min(), comparison_df['Actual'].max()],
+                y=[comparison_df['Actual'].min(), comparison_df['Actual'].max()],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='red', dash='dash')
+            ))
+            st.plotly_chart(fig_pred, use_container_width=True)
+            
+            st.success(f"✅ Model trained on {len(X_train):,} laps, tested on {len(X_test):,} laps")
+        else:
+            st.warning("Insufficient data for ML modeling (need >100 records)")
+    
+    with ml_tab2:
+        st.subheader("Driver Performance Clustering")
+        
+        # Aggregate driver statistics
+        driver_agg = year_data.groupby('driver_name').agg({
+            'milliseconds': ['mean', 'std', 'min'],
+            'lap': 'count',
+            'position': 'mean'
+        }).reset_index()
+        
+        driver_agg.columns = ['driver_name', 'avg_time', 'std_time', 'best_time', 'total_laps', 'avg_position']
+        driver_agg = driver_agg[driver_agg['total_laps'] >= 10]  # Filter drivers with enough laps
+        
+        if len(driver_agg) >= 5:
+            # Prepare features for clustering
+            features = driver_agg[['avg_time', 'std_time', 'avg_position']].copy()
+            scaler = StandardScaler()
+            features_scaled = scaler.fit_transform(features)
+            
+            # Determine optimal clusters (2-5)
+            n_clusters = min(4, len(driver_agg) // 3)
+            n_clusters = max(2, n_clusters)
+            
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+            driver_agg['cluster'] = kmeans.fit_predict(features_scaled)
+            
+            silhouette = silhouette_score(features_scaled, driver_agg['cluster'])
+            
+            st.metric("Silhouette Score", f"{silhouette:.3f}")
+            st.info(f"Drivers grouped into {n_clusters} performance clusters")
+            
+            # Visualize clusters
+            fig_cluster = px.scatter(
+                driver_agg,
+                x='avg_time',
+                y='std_time',
+                color='cluster',
+                size='total_laps',
+                hover_data=['driver_name', 'avg_position'],
+                title='Driver Clustering: Speed vs Consistency',
+                labels={
+                    'avg_time': 'Average Lap Time (ms)',
+                    'std_time': 'Lap Time Std Dev (ms)',
+                    'cluster': 'Cluster'
+                },
+                color_continuous_scale='Viridis'
+            )
+            st.plotly_chart(fig_cluster, use_container_width=True)
+            
+            # Cluster characteristics
+            st.subheader("Cluster Characteristics")
+            cluster_summary = driver_agg.groupby('cluster').agg({
+                'avg_time': 'mean',
+                'std_time': 'mean',
+                'avg_position': 'mean',
+                'driver_name': 'count'
+            }).reset_index()
+            cluster_summary.columns = ['Cluster', 'Avg Lap Time (ms)', 'Consistency (ms)', 'Avg Position', 'Drivers']
+            cluster_summary['Cluster'] = cluster_summary['Cluster'].astype(int)
+            
+            st.dataframe(cluster_summary, use_container_width=True)
+            
+            # Show drivers in each cluster
+            for cluster_id in sorted(driver_agg['cluster'].unique()):
+                with st.expander(f"Cluster {cluster_id} Drivers"):
+                    cluster_drivers = driver_agg[driver_agg['cluster'] == cluster_id][
+                        ['driver_name', 'avg_time', 'std_time', 'avg_position', 'total_laps']
+                    ].sort_values('avg_time')
+                    cluster_drivers.columns = ['Driver', 'Avg Time (ms)', 'Std Dev (ms)', 'Avg Position', 'Total Laps']
+                    st.dataframe(cluster_drivers, use_container_width=True)
+        else:
+            st.warning("Insufficient drivers for clustering analysis")
+    
+    with ml_tab3:
+        st.subheader("Anomaly Detection - Unusual Lap Times")
+        
+        if len(year_data) > 50:
+            # Calculate Z-scores for lap times
+            year_data_copy = year_data.copy()
+            year_data_copy['lap_time_seconds'] = year_data_copy['milliseconds'] / 1000
+            
+            # Group by race and calculate z-scores
+            year_data_copy['z_score'] = year_data_copy.groupby('race_name')['lap_time_seconds'].transform(
+                lambda x: np.abs((x - x.mean()) / x.std())
+            )
+            
+            # Find anomalies (z-score > 3)
+            anomalies = year_data_copy[year_data_copy['z_score'] > 3].copy()
+            anomalies = anomalies.sort_values('z_score', ascending=False)
+            
+            st.metric("Anomalous Laps Detected", len(anomalies))
+            
+            if len(anomalies) > 0:
+                # Show top anomalies
+                st.subheader("Top Anomalies")
+                top_anomalies = anomalies.head(20)[
+                    ['driver_name', 'race_name', 'lap', 'lap_time_seconds', 'position', 'z_score']
+                ].copy()
+                top_anomalies.columns = ['Driver', 'Race', 'Lap', 'Lap Time (s)', 'Position', 'Z-Score']
+                st.dataframe(top_anomalies, use_container_width=True)
+                
+                # Visualize anomalies
+                sample_race = anomalies['race_name'].value_counts().index[0]
+                race_with_anomalies = year_data_copy[year_data_copy['race_name'] == sample_race]
+                
+                fig_anomaly = px.scatter(
+                    race_with_anomalies,
+                    x='lap',
+                    y='lap_time_seconds',
+                    color=race_with_anomalies['z_score'] > 3,
+                    title=f'Lap Time Anomalies - {sample_race}',
+                    labels={'lap': 'Lap Number', 'lap_time_seconds': 'Lap Time (s)', 'color': 'Is Anomaly'},
+                    hover_data=['driver_name', 'position'],
+                    color_discrete_map={True: 'red', False: 'blue'}
+                )
+                st.plotly_chart(fig_anomaly, use_container_width=True)
+                
+                st.info("🔍 Anomalies may indicate: Safety car periods, pit stops, crashes, weather changes, or data errors")
+            else:
+                st.success("No significant anomalies detected in this season")
+        else:
+            st.warning("Insufficient data for anomaly detection")
 
 
 def render_pit_stop_analysis():
@@ -829,6 +1046,336 @@ def render_pit_stop_analysis():
         hover_data=['race_name']
     )
     st.plotly_chart(fig_evolution, use_container_width=True)
+    
+    # ========================================================================
+    # ML ANALYSIS SECTION
+    # ========================================================================
+    st.markdown("---")
+    st.header("🤖 Machine Learning Analysis")
+    
+    ml_tab1, ml_tab2, ml_tab3 = st.tabs([
+        "🎯 Pit Stop Duration Prediction",
+        "📊 Strategy Classification",
+        "👥 Team Performance Clustering"
+    ])
+    
+    with ml_tab1:
+        st.subheader("Pit Stop Duration Prediction")
+        
+        # Prepare data
+        ml_data = year_data[['driver_name', 'race_name', 'lap', 'stop', 'milliseconds']].copy()
+        if 'constructor_name' in year_data.columns:
+            ml_data['constructor_name'] = year_data['constructor_name']
+        ml_data = ml_data.dropna()
+        
+        if len(ml_data) > 100:
+            # Create features
+            ml_data['driver_encoded'] = pd.factorize(ml_data['driver_name'])[0]
+            ml_data['race_encoded'] = pd.factorize(ml_data['race_name'])[0]
+            if 'constructor_name' in ml_data.columns:
+                ml_data['team_encoded'] = pd.factorize(ml_data['constructor_name'])[0]
+                feature_cols = ['driver_encoded', 'race_encoded', 'team_encoded', 'lap', 'stop']
+            else:
+                feature_cols = ['driver_encoded', 'race_encoded', 'lap', 'stop']
+            
+            ml_data['duration_seconds'] = ml_data['milliseconds'] / 1000
+            
+            X = ml_data[feature_cols]
+            y = ml_data['duration_seconds']
+            
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            
+            with st.spinner("Training prediction model..."):
+                rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+                rf_model.fit(X_train, y_train)
+                y_pred = rf_model.predict(X_test)
+                
+                mae = mean_absolute_error(y_test, y_pred)
+                r2 = r2_score(y_test, y_pred)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Mean Absolute Error", f"{mae:.3f}s")
+                st.metric("R² Score", f"{r2:.4f}")
+                st.info(f"Trained on {len(X_train):,} pit stops")
+            
+            with col2:
+                # Feature importance
+                if 'constructor_name' in ml_data.columns:
+                    feature_names = ['Driver', 'Race', 'Team', 'Lap', 'Stop Number']
+                else:
+                    feature_names = ['Driver', 'Race', 'Lap', 'Stop Number']
+                
+                importance_df = pd.DataFrame({
+                    'Feature': feature_names,
+                    'Importance': rf_model.feature_importances_
+                }).sort_values('Importance', ascending=False)
+                
+                fig_importance = px.bar(
+                    importance_df,
+                    x='Importance',
+                    y='Feature',
+                    orientation='h',
+                    title='Feature Importance for Pit Stop Duration',
+                    color='Importance',
+                    color_continuous_scale='Reds'
+                )
+                st.plotly_chart(fig_importance, use_container_width=True)
+            
+            # Prediction accuracy visualization
+            comparison_df = pd.DataFrame({
+                'Actual': y_test.values[:100],
+                'Predicted': y_pred[:100],
+                'Error': np.abs(y_test.values[:100] - y_pred[:100])
+            })
+            
+            fig_pred = px.scatter(
+                comparison_df,
+                x='Actual',
+                y='Predicted',
+                color='Error',
+                title='Predicted vs Actual Pit Stop Duration',
+                labels={'Actual': 'Actual Duration (s)', 'Predicted': 'Predicted Duration (s)', 'Error': 'Abs Error (s)'},
+                color_continuous_scale='RdYlGn_r'
+            )
+            fig_pred.add_trace(go.Scatter(
+                x=[comparison_df['Actual'].min(), comparison_df['Actual'].max()],
+                y=[comparison_df['Actual'].min(), comparison_df['Actual'].max()],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='blue', dash='dash')
+            ))
+            st.plotly_chart(fig_pred, use_container_width=True)
+        else:
+            st.warning("Insufficient data for ML modeling (need >100 pit stops)")
+    
+    with ml_tab2:
+        st.subheader("Pit Stop Strategy Classification")
+        
+        # Aggregate by driver and race to determine strategy
+        strategy_data = year_data.groupby(['driver_name', 'race_name']).agg({
+            'stop': 'max',
+            'milliseconds': 'sum',
+            'lap': lambda x: list(x)
+        }).reset_index()
+        
+        strategy_data.columns = ['driver_name', 'race_name', 'total_stops', 'total_duration', 'pit_laps']
+        
+        if len(strategy_data) > 50:
+            # Classify strategy based on number of stops
+            def classify_strategy(stops):
+                if stops == 0:
+                    return 'No Stop'
+                elif stops == 1:
+                    return '1-Stop'
+                elif stops == 2:
+                    return '2-Stop'
+                elif stops == 3:
+                    return '3-Stop'
+                else:
+                    return '4+ Stop'
+            
+            strategy_data['strategy'] = strategy_data['total_stops'].apply(classify_strategy)
+            
+            # Strategy distribution
+            strategy_counts = strategy_data['strategy'].value_counts().reset_index()
+            strategy_counts.columns = ['Strategy', 'Count']
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig_strategy_dist = px.pie(
+                    strategy_counts,
+                    values='Count',
+                    names='Strategy',
+                    title='Pit Stop Strategy Distribution',
+                    color_discrete_sequence=px.colors.qualitative.Set3
+                )
+                st.plotly_chart(fig_strategy_dist, use_container_width=True)
+            
+            with col2:
+                st.subheader("Strategy Statistics")
+                for strategy in strategy_counts['Strategy']:
+                    count = strategy_counts[strategy_counts['Strategy'] == strategy]['Count'].values[0]
+                    percentage = (count / len(strategy_data)) * 100
+                    st.metric(strategy, f"{count} ({percentage:.1f}%)")
+            
+            # Average pit timing by strategy
+            st.subheader("Average Pit Stop Timing by Strategy")
+            
+            # Calculate average lap for first pit stop
+            strategy_data['first_pit_lap'] = strategy_data['pit_laps'].apply(
+                lambda x: sorted(x)[0] if len(x) > 0 else None
+            )
+            
+            timing_analysis = strategy_data[strategy_data['first_pit_lap'].notna()].groupby('strategy').agg({
+                'first_pit_lap': 'mean',
+                'total_duration': 'mean',
+                'driver_name': 'count'
+            }).reset_index()
+            
+            timing_analysis.columns = ['Strategy', 'Avg First Pit Lap', 'Avg Total Duration (ms)', 'Sample Size']
+            timing_analysis['Avg Total Duration (s)'] = timing_analysis['Avg Total Duration (ms)'] / 1000
+            
+            fig_timing = px.bar(
+                timing_analysis,
+                x='Strategy',
+                y='Avg First Pit Lap',
+                color='Avg Total Duration (s)',
+                title='Average First Pit Stop Lap by Strategy',
+                labels={'Avg First Pit Lap': 'Average Lap Number'},
+                text='Avg First Pit Lap',
+                color_continuous_scale='Viridis'
+            )
+            fig_timing.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+            st.plotly_chart(fig_timing, use_container_width=True)
+            
+            st.dataframe(timing_analysis, use_container_width=True)
+            
+            # Train classifier to predict strategy
+            if 'constructor_name' in year_data.columns:
+                # Add team information
+                team_mapping = year_data[['driver_name', 'constructor_name']].drop_duplicates()
+                strategy_data = strategy_data.merge(team_mapping, on='driver_name', how='left')
+                
+                ml_strategy = strategy_data.dropna()
+                if len(ml_strategy) > 50:
+                    ml_strategy['team_encoded'] = pd.factorize(ml_strategy['constructor_name'])[0]
+                    ml_strategy['race_encoded'] = pd.factorize(ml_strategy['race_name'])[0]
+                    
+                    X_strat = ml_strategy[['team_encoded', 'race_encoded']]
+                    y_strat = ml_strategy['strategy']
+                    
+                    # Filter out rare strategies for better classification
+                    strategy_counts_ml = y_strat.value_counts()
+                    valid_strategies = strategy_counts_ml[strategy_counts_ml >= 10].index
+                    mask = y_strat.isin(valid_strategies)
+                    
+                    X_strat = X_strat[mask]
+                    y_strat = y_strat[mask]
+                    
+                    if len(X_strat) > 50:
+                        X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(
+                            X_strat, y_strat, test_size=0.2, random_state=42
+                        )
+                        
+                        with st.spinner("Training strategy classifier..."):
+                            rf_classifier = RandomForestClassifier(n_estimators=100, max_depth=8, random_state=42)
+                            rf_classifier.fit(X_train_s, y_train_s)
+                            y_pred_s = rf_classifier.predict(X_test_s)
+                            
+                            accuracy = accuracy_score(y_test_s, y_pred_s)
+                        
+                        st.subheader("🎯 Strategy Prediction Model")
+                        st.metric("Classification Accuracy", f"{accuracy:.2%}")
+                        
+                        # Classification report
+                        with st.expander("View Detailed Classification Report"):
+                            report = classification_report(y_test_s, y_pred_s, output_dict=True)
+                            report_df = pd.DataFrame(report).transpose()
+                            st.dataframe(report_df, use_container_width=True)
+        else:
+            st.warning("Insufficient data for strategy classification")
+    
+    with ml_tab3:
+        st.subheader("Team Pit Crew Performance Clustering")
+        
+        if 'constructor_name' in year_data.columns:
+            # Aggregate team performance
+            team_perf = year_data.groupby('constructor_name').agg({
+                'milliseconds': ['mean', 'std', 'min', 'count'],
+                'stop': 'max'
+            }).reset_index()
+            
+            team_perf.columns = ['team', 'avg_duration', 'std_duration', 'best_time', 'total_stops', 'max_stops']
+            team_perf = team_perf[team_perf['total_stops'] >= 20]  # Filter teams with enough data
+            
+            if len(team_perf) >= 3:
+                # Prepare features
+                features = team_perf[['avg_duration', 'std_duration', 'best_time']].copy()
+                scaler = StandardScaler()
+                features_scaled = scaler.fit_transform(features)
+                
+                # Determine optimal clusters
+                n_clusters = min(3, len(team_perf) // 2)
+                n_clusters = max(2, n_clusters)
+                
+                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                team_perf['cluster'] = kmeans.fit_predict(features_scaled)
+                
+                silhouette = silhouette_score(features_scaled, team_perf['cluster'])
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.metric("Silhouette Score", f"{silhouette:.3f}")
+                    st.metric("Number of Clusters", n_clusters)
+                
+                with col2:
+                    st.metric("Teams Analyzed", len(team_perf))
+                    st.metric("Total Pit Stops", int(team_perf['total_stops'].sum()))
+                
+                # Visualize clusters
+                fig_team_cluster = px.scatter(
+                    team_perf,
+                    x='avg_duration',
+                    y='std_duration',
+                    color='cluster',
+                    size='total_stops',
+                    hover_data=['team', 'best_time'],
+                    title='Team Clustering: Average Duration vs Consistency',
+                    labels={
+                        'avg_duration': 'Average Duration (ms)',
+                        'std_duration': 'Std Dev (ms)',
+                        'cluster': 'Performance Cluster'
+                    },
+                    color_continuous_scale='Plasma'
+                )
+                st.plotly_chart(fig_team_cluster, use_container_width=True)
+                
+                # Cluster interpretation
+                st.subheader("Cluster Analysis")
+                cluster_summary = team_perf.groupby('cluster').agg({
+                    'avg_duration': 'mean',
+                    'std_duration': 'mean',
+                    'best_time': 'mean',
+                    'team': 'count'
+                }).reset_index()
+                cluster_summary.columns = ['Cluster', 'Avg Duration (ms)', 'Consistency (ms)', 'Best Time (ms)', 'Teams']
+                
+                # Add interpretation
+                def interpret_cluster(row):
+                    if row['Avg Duration (ms)'] < team_perf['avg_duration'].median():
+                        speed = "Fast"
+                    else:
+                        speed = "Slow"
+                    
+                    if row['Consistency (ms)'] < team_perf['std_duration'].median():
+                        consistency = "Consistent"
+                    else:
+                        consistency = "Variable"
+                    
+                    return f"{speed} & {consistency}"
+                
+                cluster_summary['Interpretation'] = cluster_summary.apply(interpret_cluster, axis=1)
+                
+                st.dataframe(cluster_summary, use_container_width=True)
+                
+                # Show teams in each cluster
+                for cluster_id in sorted(team_perf['cluster'].unique()):
+                    with st.expander(f"Cluster {cluster_id}: {cluster_summary[cluster_summary['Cluster']==cluster_id]['Interpretation'].values[0]}"):
+                        cluster_teams = team_perf[team_perf['cluster'] == cluster_id][
+                            ['team', 'avg_duration', 'std_duration', 'best_time', 'total_stops']
+                        ].sort_values('avg_duration')
+                        cluster_teams.columns = ['Team', 'Avg Duration (ms)', 'Std Dev (ms)', 'Best Time (ms)', 'Total Stops']
+                        cluster_teams['Avg Duration (s)'] = cluster_teams['Avg Duration (ms)'] / 1000
+                        cluster_teams['Best Time (s)'] = cluster_teams['Best Time (ms)'] / 1000
+                        st.dataframe(cluster_teams[['Team', 'Avg Duration (s)', 'Std Dev (ms)', 'Best Time (s)', 'Total Stops']], use_container_width=True)
+            else:
+                st.warning("Insufficient teams for clustering (need at least 3 teams with 20+ pit stops)")
+        else:
+            st.warning("Team/constructor information not available in dataset")
 
 
 # ============================================================================
