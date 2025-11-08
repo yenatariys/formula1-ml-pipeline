@@ -37,14 +37,6 @@ erDiagram
     FACT_DRIVER_RACE_RESULT ||--|{ DIM_DRIVER : "driverId"
     FACT_DRIVER_RACE_RESULT ||--|{ DIM_RACE : "raceId"
 ```
-    varchar surname
-    date date_of_birth
-    varchar nationality
-}
-
-FACT_RACE_RESULTS }o--|| DIM_RACE : race_id
-FACT_RACE_RESULTS }o--|| DIM_DRIVER : driver_id
-```
 
 ### Fact Table
 **`FACT_RACE_RESULTS`** (sourced from `results.csv`)
