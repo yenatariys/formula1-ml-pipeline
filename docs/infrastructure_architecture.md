@@ -7,41 +7,51 @@ This document describes the containerized IT infrastructure for the Formula 1 ma
 
 ```mermaid
 flowchart TD
-    CSV[CSV Files] --> ETL[ETL Service]
+  CSV[CSV Files] --> ETL[ETL Service]
+  ETL --> POSTGRES[(PostgreSQL)]
+  ETL --> SPARK[Spark Cluster]
+  ETL --> NEO4J[(Neo4j)]
     
-    ETL --> POSTGRES[(PostgreSQL)]
-    ETL --> SPARK[Spark Cluster]
-    ETL --> NEO4J[(Neo4j)]
+  POSTGRES --> ML_CLASSIC[Classic ML]
+  SPARK --> ML_SPARK[Spark MLlib]
+  ML_CLASSIC --> ARTIFACTS[(Artifacts)]
+  ML_SPARK --> ARTIFACTS
+  ARTIFACTS --> ML_TF[TensorFlow]
+  ML_TF --> ARTIFACTS
     
-    POSTGRES --> ML_CLASSIC[Classic ML]
-    SPARK --> ML_SPARK[Spark MLlib]
+  %% Dashboards group
+  subgraph DASHBOARDS[Dashboards]
+    DASH_C[Classic Dashboard]
+    DASH_B[BigData Dashboard]
+    DASH_U[Unified Dashboard]
+  end
+  POSTGRES --> DASHBOARDS
+  ARTIFACTS --> DASHBOARDS
+  NEO4J --> DASHBOARDS
+  ML_TF --> DASHBOARDS
     
-    ML_CLASSIC --> ARTIFACTS[(Artifacts)]
-    ML_SPARK --> ARTIFACTS
-    ARTIFACTS --> ML_TF[TensorFlow]
-    ML_TF --> ARTIFACTS
+  %% Admin UIs
+  POSTGRES --> ADMIN[pgAdmin]
+  NEO4J --> NEO4J_UI[Neo4j Browser]
     
-    POSTGRES --> DASH_C[Classic Dashboard]
-    ARTIFACTS --> DASH_C
-    ARTIFACTS --> DASH_B[BigData Dashboard]
-    
-    POSTGRES --> ADMIN[pgAdmin]
-    NEO4J --> NEO4J_UI[Neo4j Browser]
-    
-    USER[Users] -.-> DASH_C
-    USER -.-> DASH_B
-    USER -.-> ADMIN
-    USER -.-> NEO4J_UI
+  %% Users
+  USER[Users] -.-> DASHBOARDS
+  USER -.-> ADMIN
+  USER -.-> NEO4J_UI
 
-    classDef storage fill:#E1F5FE,stroke:#0277BD,stroke-width:2px
-    classDef processing fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
-    classDef ml fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
-    classDef viz fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
-    
-    class CSV,POSTGRES,ARTIFACTS,NEO4J storage
-    class ETL,SPARK processing
-    class ML_CLASSIC,ML_SPARK,ML_TF ml
-    class DASH_C,DASH_B,ADMIN,NEO4J_UI,USER viz
+  classDef storage fill:#E1F5FE,stroke:#0277BD,stroke-width:2px
+  classDef processing fill:#FFF9C4,stroke:#F57F17,stroke-width:2px
+  classDef ml fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px
+  classDef dashboards fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
+  classDef admin fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px
+  classDef users fill:#EEEEEE,stroke:#616161,stroke-width:2px
+
+  class CSV,POSTGRES,ARTIFACTS,NEO4J storage
+  class ETL,SPARK processing
+  class ML_CLASSIC,ML_SPARK,ML_TF ml
+  class DASHBOARDS dashboards
+  class ADMIN,NEO4J_UI admin
+  class USER users
 ```
 
 ### Exporting the Diagram as an Image
