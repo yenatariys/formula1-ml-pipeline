@@ -1,6 +1,3 @@
-df = load_results()
-st.divider()
-elif not df_preds.empty:
 """Compatibility shim that exposes the classic dashboard as the default app.
 
 Historically the project used ``dashboard_app.py`` as the Streamlit entry
