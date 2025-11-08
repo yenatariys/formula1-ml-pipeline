@@ -21,4 +21,7 @@ dashboard_dir = Path(__file__).parent / "dashboard"
 sys.path.insert(0, str(dashboard_dir))
 
 # Import and run the unified dashboard
-from unified_app import *  # noqa: F401,F403
+from unified_app import main
+
+# Run the unified dashboard
+main()
